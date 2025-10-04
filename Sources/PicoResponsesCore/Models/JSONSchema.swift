@@ -82,7 +82,7 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
         case let int64 as Int64:
             return Int(exactly: int64)
         case let double as Double:
-            return Int(double)
+            return double.rounded() == double ? Int(exactly: double) : nil
         default:
             return nil
         }
@@ -95,7 +95,7 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
         case let int as Int:
             return Int64(int)
         case let double as Double:
-            return Int64(double)
+            return double.rounded() == double ? Int64(double) : nil
         case let number as NSNumber:
             return number.int64Value
         case let string as String:
