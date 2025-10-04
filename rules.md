@@ -81,6 +81,7 @@
 - Are we targeting additional platforms (visionOS, watchOS) that may impact SwiftUI packaging decisions? -> Support iOS, iPadOS, macOS and visionOS skip watchOS for now.
 - Will we ship sample tooling (CLI) for quick testing? -> No, I will add an xcodeproj manually later
 - Implementation-level helpers deferred to coding phase: SSE/event-stream parsing utilities, multipart convenience wrappers, retry/backoff configuration, and streaming resumption logic all need backlog coverage once core types are in place.
+- Add PicoResponses ⇄ MLX integration helpers (bridge JSONSchema/AnyCodable to MLX `Tool` / `JSONValue` without adding MLX dependency) so downstream projects can plug in easily.
 
 ## References
 - Responses API: https://platform.openai.com/docs/api-reference/responses
