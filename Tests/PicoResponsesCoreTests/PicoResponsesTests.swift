@@ -15,9 +15,18 @@ import Testing
         ],
         instructions: "Be concise",
         modalities: [.text],
-        responseFormat: ResponseFormat(type: .jsonSchema, jsonSchema: JSONSchema(value: [
-            "type": AnyCodable("object")
-        ]), strict: true),
+        responseFormat: ResponseFormat(
+            type: .jsonSchema,
+            jsonSchema: .object(
+                properties: [
+                    "summary": .string(minLength: 1, maxLength: 256, description: "Short blurb"),
+                    "score": .number(minimum: 0, maximum: 1)
+                ],
+                required: ["summary"],
+                additionalProperties: .boolean(false)
+            ),
+            strict: true
+        ),
         audio: ResponseAudioOptions(voice: "alloy", format: "wav"),
         metadata: ["conversation_id": AnyCodable("conv_123"), "attempt": AnyCodable(1)],
         temperature: 0.3,
@@ -36,9 +45,17 @@ import Testing
             ResponseToolDefinition(
                 name: "weather",
                 description: "Get the forecast",
-                inputSchema: JSONSchema(value: [
-                    "type": AnyCodable("object")
-                ])
+                inputSchema: .object(
+                    properties: [
+                        "location": .string(minLength: 1, description: "City name"),
+                        "unit": .enumeration([
+                            AnyCodable("celsius"),
+                            AnyCodable("fahrenheit")
+                        ])
+                    ],
+                    required: ["location"],
+                    additionalProperties: .boolean(false)
+                )
             )
         ],
         toolChoice: .auto,
@@ -76,6 +93,28 @@ import Testing
     let responseSchema = responseFormat? ["json_schema"] as? [String: Any]
     #expect(responseSchema? ["type"] as? String == "object")
     #expect(responseFormat? ["strict"] as? Bool == true)
+    let responseProperties = responseSchema? ["properties"] as? [String: Any]
+    let summarySchema = responseProperties? ["summary"] as? [String: Any]
+    #expect(summarySchema? ["type"] as? String == "string")
+    #expect(summarySchema? ["minLength"] as? Int == 1)
+    #expect(summarySchema? ["maxLength"] as? Int == 256)
+    let scoreSchema = responseProperties? ["score"] as? [String: Any]
+    #expect(scoreSchema? ["type"] as? String == "number")
+    #expect(scoreSchema? ["minimum"] as? Double == 0)
+    #expect(scoreSchema? ["maximum"] as? Double == 1)
+    let requiredFields = responseSchema? ["required"] as? [String]
+    #expect(requiredFields?.contains("summary") == true)
+    #expect(responseSchema? ["additionalProperties"] as? Bool == false)
+    let tools = json? ["tools"] as? [[String: Any]]
+    let firstTool = tools?.first
+    let inputSchema = firstTool? ["parameters"] as? [String: Any]
+    #expect(inputSchema? ["type"] as? String == "object")
+    let toolProperties = inputSchema? ["properties"] as? [String: Any]
+    let locationSchema = toolProperties? ["location"] as? [String: Any]
+    #expect(locationSchema? ["minLength"] as? Int == 1)
+    let unitSchema = toolProperties? ["unit"] as? [String: Any]
+    let unitEnum = unitSchema? ["enum"] as? [String]
+    #expect(unitEnum?.contains("celsius") == true)
     #expect(json? ["parallel_tool_calls"] as? Bool == false)
     #expect(json? ["seed"] as? Int == 123)
 }
@@ -159,4 +198,48 @@ import Testing
     #expect(secondContent? ["text"]?.stringValue == "lo")
 
     #expect(results[2].type == "done")
+}
+
+@Test func jsonSchemaEncodingAndDecoding() throws {
+    let schema = JSONSchema.object(
+        properties: [
+            "name": .string(minLength: 1, maxLength: 64, description: "Display name"),
+            "age": .integer(minimum: 0, maximum: 150),
+            "tags": .array(items: .string(), minItems: 1)
+        ],
+        required: ["name", "age"],
+        additionalProperties: .schema(.string()),
+        description: "Person record"
+    )
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(schema)
+    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+    #expect(json? ["type"] as? String == "object")
+    let required = json? ["required"] as? [String]
+    #expect(required == ["age", "name"] || required == ["name", "age"])
+    let additional = json? ["additionalProperties"] as? [String: Any]
+    #expect(additional? ["type"] as? String == "string")
+
+    let decoded = try JSONDecoder().decode(JSONSchema.self, from: data)
+    #expect(decoded == schema)
+
+    let nullableData = try JSONSerialization.data(withJSONObject: [
+        "type": ["string", "null"],
+        "description": "Optional string"
+    ])
+    let nullable = try JSONDecoder().decode(JSONSchema.self, from: nullableData)
+    #expect(nullable == .union([.string, .null], description: "Optional string"))
+
+    let anyOfData = try JSONSerialization.data(withJSONObject: [
+        "anyOf": [
+            ["type": "string"],
+            ["type": "number"]
+        ],
+        "description": "String or number"
+    ])
+    let anyOf = try JSONDecoder().decode(JSONSchema.self, from: anyOfData)
+    #expect(anyOf == .anyOf([.string(), .number()], description: "String or number"))
 }
