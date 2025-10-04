@@ -1,0 +1,1 @@
+struct EmptyBody: Encodable, Sendable {}
