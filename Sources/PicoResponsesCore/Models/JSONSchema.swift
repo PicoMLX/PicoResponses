@@ -24,6 +24,8 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
             self.value = bool
         } else if let int = try? container.decode(Int.self) {
             self.value = int
+        } else if let int64 = try? container.decode(Int64.self) {
+            self.value = int64
         } else if let double = try? container.decode(Double.self) {
             self.value = double
         } else if let string = try? container.decode(String.self) {
@@ -50,6 +52,8 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
             try container.encode(bool)
         case let int as Int:
             try container.encode(int)
+        case let int64 as Int64:
+            try container.encode(int64)
         case let double as Double:
             try container.encode(double)
         case let string as String:
@@ -75,8 +79,27 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
         switch value {
         case let int as Int:
             return int
+        case let int64 as Int64:
+            return Int(exactly: int64)
         case let double as Double:
             return Int(double)
+        default:
+            return nil
+        }
+    }
+
+    public var int64Value: Int64? {
+        switch value {
+        case let int64 as Int64:
+            return int64
+        case let int as Int:
+            return Int64(int)
+        case let double as Double:
+            return Int64(double)
+        case let number as NSNumber:
+            return number.int64Value
+        case let string as String:
+            return Int64(string)
         default:
             return nil
         }
@@ -88,6 +111,8 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
             return double
         case let int as Int:
             return Double(int)
+        case let int64 as Int64:
+            return Double(int64)
         default:
             return nil
         }
@@ -138,6 +163,12 @@ public func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
         return l == r
     case let (l as Int, r as Int):
         return l == r
+    case let (l as Int64, r as Int64):
+        return l == r
+    case let (l as Int, r as Int64):
+        return Int64(l) == r
+    case let (l as Int64, r as Int):
+        return l == Int64(r)
     case let (l as Double, r as Double):
         return l == r
     case let (l as String, r as String):
@@ -213,6 +244,7 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
         }
     }
 
+    case document(root: JSONSchema, definitions: [String: JSONSchema] = [:])
     case null(description: String? = nil)
     case boolean(description: String? = nil)
     case string(minLength: Int? = nil, maxLength: Int? = nil, pattern: String? = nil, format: String? = nil, description: String? = nil)
@@ -225,24 +257,28 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
         description: String? = nil
     )
     case integer(
-        multipleOf: Int? = nil,
-        minimum: Int? = nil,
-        exclusiveMinimum: Int? = nil,
-        maximum: Int? = nil,
-        exclusiveMaximum: Int? = nil,
+        multipleOf: Int64? = nil,
+        minimum: Int64? = nil,
+        exclusiveMinimum: Int64? = nil,
+        maximum: Int64? = nil,
+        exclusiveMaximum: Int64? = nil,
         description: String? = nil
     )
     case array(items: JSONSchema, minItems: Int? = nil, maxItems: Int? = nil, description: String? = nil)
+    case tuple(prefixItems: [JSONSchema], items: JSONSchema? = nil, minItems: Int? = nil, maxItems: Int? = nil, description: String? = nil)
     case object(
         properties: [String: JSONSchema],
+        patternProperties: [String: JSONSchema]? = nil,
         required: Set<String> = [],
         additionalProperties: AdditionalProperties = .boolean(true),
         description: String? = nil
     )
     case enumeration([AnyCodable], description: String? = nil)
+    case not(JSONSchema, description: String? = nil)
     case anyOf([JSONSchema], description: String? = nil)
     case allOf([JSONSchema], description: String? = nil)
     case oneOf([JSONSchema], description: String? = nil)
+    case conditional(if: JSONSchema, then: JSONSchema?, else: JSONSchema?, description: String? = nil)
     case union([PrimitiveType], description: String? = nil)
     case constant(AnyCodable, description: String? = nil)
     case reference(String, description: String? = nil)
@@ -265,7 +301,30 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
     }
 
     private static func parse(raw: [String: AnyCodable]) -> JSONSchema {
+        if let defsDictionary = raw["$defs"]?.dictionaryValue, !defsDictionary.isEmpty {
+            var remainder = raw
+            remainder["$defs"] = nil
+            let definitions = parseDefinitions(defsDictionary)
+            let root = JSONSchema.parse(raw: remainder)
+            return .document(root: root, definitions: definitions)
+        }
+
+        if raw["prefixItems"] != nil {
+            // TODO: Support tuple schemas expressed with prefixItems.
+            return .raw(raw)
+        }
+
         let description = raw["description"]?.stringValue
+
+        if let notDictionary = raw["not"]?.dictionaryValue {
+            return .not(JSONSchema.parse(raw: notDictionary), description: description)
+        }
+
+        if let ifDictionary = raw["if"]?.dictionaryValue {
+            let thenSchema = raw["then"]?.dictionaryValue.map { JSONSchema.parse(raw: $0) }
+            let elseSchema = raw["else"]?.dictionaryValue.map { JSONSchema.parse(raw: $0) }
+            return .conditional(if: JSONSchema.parse(raw: ifDictionary), then: thenSchema, else: elseSchema, description: description)
+        }
 
         if let ref = raw["$ref"]?.stringValue {
             return .reference(ref, description: description)
@@ -296,6 +355,10 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
             }
         }
 
+        if raw["type"] == nil, raw["properties"]?.dictionaryValue != nil {
+            return parseObject(from: raw, description: description)
+        }
+
         if let typeName = raw["type"]?.stringValue {
             switch typeName {
             case "null":
@@ -321,11 +384,11 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
                 )
             case "integer":
                 return .integer(
-                    multipleOf: raw["multipleOf"]?.intValue,
-                    minimum: raw["minimum"]?.intValue,
-                    exclusiveMinimum: raw["exclusiveMinimum"]?.intValue,
-                    maximum: raw["maximum"]?.intValue,
-                    exclusiveMaximum: raw["exclusiveMaximum"]?.intValue,
+                    multipleOf: raw["multipleOf"]?.int64Value,
+                    minimum: raw["minimum"]?.int64Value,
+                    exclusiveMinimum: raw["exclusiveMinimum"]?.int64Value,
+                    maximum: raw["maximum"]?.int64Value,
+                    exclusiveMaximum: raw["exclusiveMaximum"]?.int64Value,
                     description: description
                 )
             case "array":
@@ -338,34 +401,69 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
                     )
                 }
             case "object":
-                let propertiesDictionary = raw["properties"]?.dictionaryValue ?? [:]
-                var properties: [String: JSONSchema] = [:]
-                for (key, value) in propertiesDictionary {
-                    if let schemaDictionary = value.dictionaryValue {
-                        properties[key] = JSONSchema.parse(raw: schemaDictionary)
-                    }
-                }
-                let required = Set(raw["required"]?.arrayValue?.compactMap { $0.stringValue } ?? [])
-                let additional: AdditionalProperties
-                if let bool = raw["additionalProperties"]?.boolValue {
-                    additional = .boolean(bool)
-                } else if let dictionary = raw["additionalProperties"]?.dictionaryValue {
-                    additional = .schema(JSONSchema.parse(raw: dictionary))
-                } else {
-                    additional = .boolean(true)
-                }
-                return .object(
-                    properties: properties,
-                    required: required,
-                    additionalProperties: additional,
-                    description: description
-                )
+                return parseObject(from: raw, description: description)
             default:
                 break
             }
         }
 
+        if raw["properties"]?.dictionaryValue != nil {
+            return parseObject(from: raw, description: description)
+        }
+
         return .raw(raw)
+    }
+
+    private static func parseDefinitions(_ dictionary: [String: AnyCodable]) -> [String: JSONSchema] {
+        var definitions: [String: JSONSchema] = [:]
+        for (key, value) in dictionary {
+            guard let schemaDictionary = value.dictionaryValue else {
+                continue
+            }
+            definitions[key] = JSONSchema.parse(raw: schemaDictionary)
+        }
+        return definitions
+    }
+
+    private static func parseObject(from raw: [String: AnyCodable], description: String?) -> JSONSchema {
+        let propertiesDictionary = raw["properties"]?.dictionaryValue ?? [:]
+        var properties: [String: JSONSchema] = [:]
+        for (key, value) in propertiesDictionary {
+            guard let schemaDictionary = value.dictionaryValue else {
+                continue
+            }
+            properties[key] = JSONSchema.parse(raw: schemaDictionary)
+        }
+
+        var patternProperties: [String: JSONSchema]?
+        if let patternDictionary = raw["patternProperties"]?.dictionaryValue, !patternDictionary.isEmpty {
+            var parsed: [String: JSONSchema] = [:]
+            for (pattern, value) in patternDictionary {
+                guard let schemaDictionary = value.dictionaryValue else {
+                    continue
+                }
+                parsed[pattern] = JSONSchema.parse(raw: schemaDictionary)
+            }
+            patternProperties = parsed.isEmpty ? nil : parsed
+        }
+
+        let required = Set(raw["required"]?.arrayValue?.compactMap { $0.stringValue } ?? [])
+        let additional: AdditionalProperties
+        if let bool = raw["additionalProperties"]?.boolValue {
+            additional = .boolean(bool)
+        } else if let dictionary = raw["additionalProperties"]?.dictionaryValue {
+            additional = .schema(JSONSchema.parse(raw: dictionary))
+        } else {
+            additional = .boolean(true)
+        }
+
+        return .object(
+            properties: properties,
+            patternProperties: patternProperties,
+            required: required,
+            additionalProperties: additional,
+            description: description
+        )
     }
 
     private static func decodeSchemas(key: String, from raw: [String: AnyCodable]) -> [JSONSchema]? {
@@ -383,6 +481,16 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
 
     private func dictionaryRepresentation() -> [String: Any] {
         switch self {
+        case .document(let root, let definitions):
+            var result = root.dictionaryRepresentation()
+            if !definitions.isEmpty {
+                var encoded: [String: Any] = [:]
+                for (key, schema) in definitions {
+                    encoded[key] = schema.dictionaryRepresentation()
+                }
+                result["$defs"] = encoded
+            }
+            return result
         case .null(let description):
             return base(type: "null", description: description)
         case .boolean(let description):
@@ -416,7 +524,14 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
             if let minItems { result["minItems"] = minItems }
             if let maxItems { result["maxItems"] = maxItems }
             return result
-        case .object(let properties, let required, let additionalProperties, let description):
+        case .tuple(let prefixItems, let items, let minItems, let maxItems, let description):
+            var result = base(type: "array", description: description)
+            result["prefixItems"] = prefixItems.map { $0.dictionaryRepresentation() }
+            if let items { result["items"] = items.dictionaryRepresentation() }
+            if let minItems { result["minItems"] = minItems }
+            if let maxItems { result["maxItems"] = maxItems }
+            return result
+        case .object(let properties, let patternProperties, let required, let additionalProperties, let description):
             var result = base(type: "object", description: description)
             if !properties.isEmpty {
                 var encoded: [String: Any] = [:]
@@ -424,6 +539,13 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
                     encoded[key] = schema.dictionaryRepresentation()
                 }
                 result["properties"] = encoded
+            }
+            if let patternProperties, !patternProperties.isEmpty {
+                var encoded: [String: Any] = [:]
+                for (pattern, schema) in patternProperties {
+                    encoded[pattern] = schema.dictionaryRepresentation()
+                }
+                result["patternProperties"] = encoded
             }
             if !required.isEmpty {
                 result["required"] = required.sorted()
@@ -442,12 +564,22 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
             }
             if let description { result["description"] = description }
             return result
+        case .not(let schema, let description):
+            var result: [String: Any] = ["not": schema.dictionaryRepresentation()]
+            if let description { result["description"] = description }
+            return result
         case .anyOf(let schemas, let description):
             return compose(key: "anyOf", schemas: schemas, description: description)
         case .allOf(let schemas, let description):
             return compose(key: "allOf", schemas: schemas, description: description)
         case .oneOf(let schemas, let description):
             return compose(key: "oneOf", schemas: schemas, description: description)
+        case .conditional(let ifSchema, let thenSchema, let elseSchema, let description):
+            var result: [String: Any] = ["if": ifSchema.dictionaryRepresentation()]
+            if let thenSchema { result["then"] = thenSchema.dictionaryRepresentation() }
+            if let elseSchema { result["else"] = elseSchema.dictionaryRepresentation() }
+            if let description { result["description"] = description }
+            return result
         case .union(let primitives, let description):
             var result: [String: Any] = ["type": primitives.map { $0.rawValue }]
             if let description { result["description"] = description }
@@ -492,8 +624,10 @@ public indirect enum JSONSchema: Codable, Sendable, Equatable {
             switch value {
             case is String: return .string
             case is Int: return .integer
+            case is Int64: return .integer
             case is Double, is Float: return .number
             case is Bool: return .boolean
+            case is NSNumber: return .number
             case is [Any]: return .array
             case is [String: Any]: return .object
             case is NSNull: return .null
