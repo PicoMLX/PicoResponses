@@ -58,20 +58,6 @@ public struct ResponseDeletion: Codable, Sendable, Equatable {
     public var deleted: Bool
 }
 
-public struct ResponseStreamEvent: Sendable, Equatable {
-    public enum Kind: Sendable, Equatable {
-        case chunk(ResponseStreamChunk)
-        case completed
-        case error(String)
-    }
-
-    public let kind: Kind
-
-    public init(kind: Kind) {
-        self.kind = kind
-    }
-}
-
 struct ResponseStreamParser {
     private let decoder: JSONDecoder
 
@@ -89,20 +75,26 @@ struct ResponseStreamParser {
                         while let range = buffer.range(of: Data([0x0a, 0x0a])) { // double newline
                             let chunkData = buffer.subdata(in: buffer.startIndex..<range.lowerBound)
                             buffer.removeSubrange(buffer.startIndex..<range.upperBound)
+                            guard !chunkData.isEmpty else { continue }
                             guard let line = String(data: chunkData, encoding: .utf8) else { continue }
                             guard line.hasPrefix("data:") else { continue }
                             let payloadString = line.dropFirst(5)
                             let trimmed = payloadString.trimmingCharacters(in: .whitespacesAndNewlines)
                             if trimmed == "[DONE]" {
-                                continuation.yield(ResponseStreamEvent(kind: .completed))
+                                continuation.yield(ResponseStreamEvent(type: "done", data: [:]))
                                 continue
                             }
                             guard let jsonData = trimmed.data(using: .utf8) else { continue }
                             do {
-                                let chunk = try decoder.decode(ResponseStreamChunk.self, from: jsonData)
-                                continuation.yield(ResponseStreamEvent(kind: .chunk(chunk)))
+                                let dictionary = try decoder.decode([String: AnyCodable].self, from: jsonData)
+                                let type = dictionary["type"]?.stringValue ?? dictionary["event"]?.stringValue ?? "unknown"
+                                continuation.yield(ResponseStreamEvent(type: type, data: dictionary))
                             } catch {
-                                continuation.yield(ResponseStreamEvent(kind: .error("chunk_decoding_failed")))
+                                let errorPayload: [String: AnyCodable] = [
+                                    "type": AnyCodable("error"),
+                                    "message": AnyCodable("chunk_decoding_failed")
+                                ]
+                                continuation.yield(ResponseStreamEvent(type: "error", data: errorPayload))
                             }
                         }
                     }

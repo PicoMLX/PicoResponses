@@ -9,12 +9,41 @@ import Testing
             .message(
                 role: .user,
                 content: [
-                    .inputText(.input("Hello"))
+                    .inputText("Hello")
                 ]
             )
         ],
-        metadata: ["conversation_id": "conv_123"],
-        toolChoice: .auto
+        instructions: "Be concise",
+        modalities: [.text],
+        responseFormat: ResponseFormat(type: .jsonSchema, jsonSchema: JSONSchema(value: [
+            "type": AnyCodable("object")
+        ]), strict: true),
+        audio: ResponseAudioOptions(voice: "alloy", format: "wav"),
+        metadata: ["conversation_id": AnyCodable("conv_123"), "attempt": AnyCodable(1)],
+        temperature: 0.3,
+        topP: 0.9,
+        frequencyPenalty: 0.1,
+        presencePenalty: 0.2,
+        stop: ["END"],
+        maxOutputTokens: 256,
+        maxInputTokens: 2048,
+        truncationStrategy: ResponseTruncationStrategy(type: "auto", maxInputTokens: 2048),
+        reasoning: ResponseReasoningOptions(effort: "medium", minOutputTokens: 8, maxOutputTokens: 128),
+        logitBias: ["42": -2.5],
+        seed: 123,
+        parallelToolCalls: false,
+        tools: [
+            ResponseToolDefinition(
+                name: "weather",
+                description: "Get the forecast",
+                inputSchema: JSONSchema(value: [
+                    "type": AnyCodable("object")
+                ])
+            )
+        ],
+        toolChoice: .auto,
+        session: "sess_123",
+        previousResponseId: "resp_456"
     )
 
     let encoder = JSONEncoder()
@@ -37,10 +66,18 @@ import Testing
         return
     }
 
-    #expect(first["type"] as? String == "message")
     #expect(first["role"] as? String == "user")
     #expect(firstContent["type"] as? String == "input_text")
     #expect(firstContent["text"] as? String == "Hello")
+
+    #expect(json? ["instructions"] as? String == "Be concise")
+    let responseFormat = json? ["response_format"] as? [String: Any]
+    #expect(responseFormat? ["type"] as? String == "json_schema")
+    let responseSchema = responseFormat? ["json_schema"] as? [String: Any]
+    #expect(responseSchema? ["type"] as? String == "object")
+    #expect(responseFormat? ["strict"] as? Bool == true)
+    #expect(json? ["parallel_tool_calls"] as? Bool == false)
+    #expect(json? ["seed"] as? Int == 123)
 }
 
 @Test func toolChoiceEncodingRoundTrip() throws {
@@ -73,7 +110,9 @@ import Testing
         continuation.finish()
     }
 
-    let parser = ResponseStreamParser(decoder: JSONDecoder())
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .secondsSince1970
+    let parser = ResponseStreamParser(decoder: decoder)
     var results: [ResponseStreamEvent] = []
     for try await event in parser.parse(stream: stream) {
         results.append(event)
@@ -81,32 +120,17 @@ import Testing
 
     #expect(results.count == 3)
     guard results.count == 3 else { return }
-    if case let .chunk(first) = results[0].kind {
-        #expect(first.type == "response.output_text.delta")
-        #expect(first.status == .inProgress)
-        #expect(first.item?.content.first?.textValue == "Hel")
-    } else {
-        Issue.record("Expected first event to be chunk")
-    }
-    if case let .chunk(second) = results[1].kind {
-        #expect(second.item?.content.first?.textValue == "lo")
-    } else {
-        Issue.record("Expected second event to be chunk")
-    }
-    if case .completed = results[2].kind {
-        // success
-    } else {
-        Issue.record("Expected final event to be completion")
-    }
-}
 
-private extension ResponseContent {
-    var textValue: String? {
-        switch self {
-        case .text(let content), .inputText(let content), .outputText(let content):
-            return content.text
-        default:
-            return nil
-        }
-    }
+    #expect(results[0].type == "response.output_text.delta")
+    #expect(results[0].status == .inProgress)
+    let firstItem = results[0].data["item"]?.dictionaryValue
+    let firstContent = firstItem? ["content"]?.arrayValue?.first?.dictionaryValue
+    #expect(firstContent? ["text"]?.stringValue == "Hel")
+
+    #expect(results[1].type == "response.output_text.delta")
+    let secondItem = results[1].data["item"]?.dictionaryValue
+    let secondContent = secondItem? ["content"]?.arrayValue?.first?.dictionaryValue
+    #expect(secondContent? ["text"]?.stringValue == "lo")
+
+    #expect(results[2].type == "done")
 }
