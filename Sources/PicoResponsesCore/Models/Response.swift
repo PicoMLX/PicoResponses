@@ -758,6 +758,9 @@ public struct ResponseObject: Codable, Sendable, Equatable {
     public var id: String
     public var object: String
     public var createdAt: Date
+    public var completedAt: Date?
+    public var updatedAt: Date?
+    public var expiresAt: Date?
     public var model: String
     public var status: ResponseStatus
     public var statusDetails: ResponseStatusDetails?
@@ -780,6 +783,9 @@ public struct ResponseObject: Codable, Sendable, Equatable {
         id: String,
         object: String = "response",
         createdAt: Date,
+        completedAt: Date? = nil,
+        updatedAt: Date? = nil,
+        expiresAt: Date? = nil,
         model: String,
         status: ResponseStatus,
         statusDetails: ResponseStatusDetails? = nil,
@@ -801,6 +807,9 @@ public struct ResponseObject: Codable, Sendable, Equatable {
         self.id = id
         self.object = object
         self.createdAt = createdAt
+        self.completedAt = completedAt
+        self.updatedAt = updatedAt
+        self.expiresAt = expiresAt
         self.model = model
         self.status = status
         self.statusDetails = statusDetails
@@ -824,6 +833,9 @@ public struct ResponseObject: Codable, Sendable, Equatable {
         case id
         case object
         case createdAt = "created_at"
+        case completedAt = "completed_at"
+        case updatedAt = "updated_at"
+        case expiresAt = "expires_at"
         case model
         case status
         case statusDetails = "status_details"

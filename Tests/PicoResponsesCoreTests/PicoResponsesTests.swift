@@ -80,6 +80,32 @@ import Testing
     #expect(json? ["seed"] as? Int == 123)
 }
 
+@Test func responseObjectDecodesAdditionalTimestamps() throws {
+    let json = """
+    {
+        "id": "resp_123",
+        "object": "response",
+        "created_at": 1,
+        "completed_at": 2,
+        "updated_at": 3,
+        "expires_at": 4,
+        "model": "gpt-4o-mini",
+        "status": "completed",
+        "output": []
+    }
+    """
+
+    let data = Data(json.utf8)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .secondsSince1970
+    let response = try decoder.decode(ResponseObject.self, from: data)
+
+    #expect(response.createdAt == Date(timeIntervalSince1970: 1))
+    #expect(response.completedAt == Date(timeIntervalSince1970: 2))
+    #expect(response.updatedAt == Date(timeIntervalSince1970: 3))
+    #expect(response.expiresAt == Date(timeIntervalSince1970: 4))
+}
+
 @Test func toolChoiceEncodingRoundTrip() throws {
     let choice = ToolChoice.named("weather")
     let data = try JSONEncoder().encode(choice)
