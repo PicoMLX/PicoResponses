@@ -5,22 +5,27 @@ import PackageDescription
 
 let package = Package(
     name: "PicoResponses",
-    products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
-        .library(
-            name: "PicoResponses",
-            targets: ["PicoResponses"]
-        ),
+    platforms: [
+        .iOS(.v17),
+        .macOS(.v14),
+        .tvOS(.v17),
+        .visionOS(.v1)
     ],
+    products: [
+        .library(
+            name: "PicoResponsesCore",
+            targets: ["PicoResponsesCore"]
+        )
+    ],
+    dependencies: [],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "PicoResponses"
+            name: "PicoResponsesCore",
+            dependencies: []
         ),
         .testTarget(
-            name: "PicoResponsesTests",
-            dependencies: ["PicoResponses"]
-        ),
+            name: "PicoResponsesCoreTests",
+            dependencies: ["PicoResponsesCore"]
+        )
     ]
 )
