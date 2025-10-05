@@ -36,7 +36,7 @@ public actor ConversationsClient {
     }
 
     public func update(id: String, request body: ConversationUpdateRequest) async throws -> ConversationObject {
-        let request = HTTPRequest(method: .patch, path: "conversations/\(id)", body: body)
+        let request = HTTPRequest(method: .post, path: "conversations/\(id)", body: body)
         return try await http.send(request, encoder: encoder, decoder: decoder)
     }
 
