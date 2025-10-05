@@ -16,8 +16,21 @@ public actor ResponsesClient {
         self.encoder = encoder
     }
 
-    public func create(request: ResponseCreateRequest) async throws -> ResponseObject {
-        let httpRequest = HTTPRequest(method: .post, path: "responses", body: request)
+    public func create(
+        request: ResponseCreateRequest,
+        idempotencyKey: String? = nil,
+        headers: [String: String]? = nil
+    ) async throws -> ResponseObject {
+        var requestHeaders = headers ?? [:]
+        if let idempotencyKey {
+            requestHeaders["Idempotency-Key"] = idempotencyKey
+        }
+        let httpRequest = HTTPRequest(
+            method: .post,
+            path: "responses",
+            headers: requestHeaders.isEmpty ? nil : requestHeaders,
+            body: request
+        )
         return try await http.send(httpRequest, encoder: encoder, decoder: decoder)
     }
 
@@ -46,16 +59,30 @@ public actor ResponsesClient {
         return try await http.send(httpRequest, encoder: encoder, decoder: decoder)
     }
 
-    public func stream(request: ResponseCreateRequest) throws -> AsyncThrowingStream<ResponseStreamEvent, Error> {
-        let headers = [
-            "Accept": "text/event-stream",
-            "Cache-Control": "no-cache"
-        ]
+    public func stream(
+        request: ResponseCreateRequest,
+        idempotencyKey: String? = nil,
+        lastEventID: String? = nil,
+        headers: [String: String]? = nil
+    ) throws -> AsyncThrowingStream<ResponseStreamEvent, Error> {
+        var requestHeaders: [String: String] = headers ?? [:]
+        if requestHeaders["Accept"] == nil {
+            requestHeaders["Accept"] = "text/event-stream"
+        }
+        if requestHeaders["Cache-Control"] == nil {
+            requestHeaders["Cache-Control"] = "no-cache"
+        }
+        if let idempotencyKey {
+            requestHeaders["Idempotency-Key"] = idempotencyKey
+        }
+        if let lastEventID {
+            requestHeaders["Last-Event-ID"] = lastEventID
+        }
         let httpRequest = HTTPRequest(
             method: .post,
             path: "responses",
             query: [URLQueryItem(name: "stream", value: "true")],
-            headers: headers,
+            headers: requestHeaders.isEmpty ? nil : requestHeaders,
             body: request
         )
         let eventStream = http.sendStream(httpRequest, encoder: encoder)

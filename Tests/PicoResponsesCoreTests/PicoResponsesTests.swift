@@ -311,17 +311,47 @@ private func parseEvents(_ frames: [String]) async -> [EventSource.Event] {
     guard results.count == 3 else { return }
 
     #expect(results[0].type == "response.output_text.delta")
+    #expect(results[0].kind == .responseOutputTextDelta)
     #expect(results[0].status == .inProgress)
     let firstItem = results[0].data["item"]?.dictionaryValue
     let firstContent = firstItem? ["content"]?.arrayValue?.first?.dictionaryValue
     #expect(firstContent? ["text"]?.stringValue == "Hel")
 
     #expect(results[1].type == "response.output_text.delta")
+    #expect(results[1].kind == .responseOutputTextDelta)
     let secondItem = results[1].data["item"]?.dictionaryValue
     let secondContent = secondItem? ["content"]?.arrayValue?.first?.dictionaryValue
     #expect(secondContent? ["text"]?.stringValue == "lo")
 
     #expect(results[2].type == "done")
+    #expect(results[2].kind == .done)
+    #expect(results[2].isTerminal)
+}
+
+@Test func responseStreamEventProvidesTypedConvenience() {
+    let responsePayload: [String: AnyCodable] = [
+        "response": AnyCodable([
+            "id": "resp_123",
+            "object": "response",
+            "created_at": 0,
+            "model": "gpt-4o-mini",
+            "status": "completed",
+            "output": []
+        ])
+    ]
+
+    let completedEvent = ResponseStreamEvent(type: "response.completed", data: responsePayload)
+    #expect(completedEvent.kind == .responseCompleted)
+    #expect(completedEvent.isTerminal)
+    #expect(completedEvent.completedResponse?.id == "resp_123")
+
+    let errorEvent = ResponseStreamEvent(
+        type: "response.error",
+        data: ["error": AnyCodable(["message": "failed", "type": "server_error"])]
+    )
+    #expect(errorEvent.kind == .responseError)
+    #expect(errorEvent.isTerminal)
+    #expect(errorEvent.streamError?.message == "failed")
 }
 
 @Test func jsonSchemaEncodingAndDecoding() throws {

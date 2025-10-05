@@ -714,6 +714,38 @@ public struct ResponseStreamEvent: Sendable, Equatable {
         self.data = data
     }
 
+    public enum Kind: Sendable, Equatable {
+        case responseCreated
+        case responseInProgress
+        case responseCompleted
+        case responseOutputTextDelta
+        case responseOutputTextDone
+        case responseError
+        case done
+        case other(String)
+    }
+
+    public var kind: Kind {
+        switch type {
+        case "response.created":
+            return .responseCreated
+        case "response.in_progress":
+            return .responseInProgress
+        case "response.completed":
+            return .responseCompleted
+        case "response.output_text.delta":
+            return .responseOutputTextDelta
+        case "response.output_text.done":
+            return .responseOutputTextDone
+        case "response.error":
+            return .responseError
+        case "done":
+            return .done
+        default:
+            return .other(type)
+        }
+    }
+
     public var status: ResponseStatus? {
         guard let value = data["status"]?.stringValue else { return nil }
         return ResponseStatus(rawValue: value)
@@ -728,9 +760,19 @@ public struct ResponseStreamEvent: Sendable, Equatable {
         return ResponseDelta(type: payload["type"]?.stringValue, data: payload)
     }
 
+    public var outputTextDelta: ResponseDelta? {
+        guard kind == .responseOutputTextDelta else { return nil }
+        return delta
+    }
+
     public var error: ResponseError? {
         guard let payload = data["error"]?.dictionaryValue else { return nil }
         return payload.decode(ResponseError.self)
+    }
+
+    public var streamError: ResponseError? {
+        guard kind == .responseError else { return nil }
+        return error
     }
 
     public var response: ResponseObject? {
@@ -738,5 +780,19 @@ public struct ResponseStreamEvent: Sendable, Equatable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         return payload.decode(ResponseObject.self, using: decoder)
+    }
+
+    public var completedResponse: ResponseObject? {
+        guard kind == .responseCompleted else { return nil }
+        return response
+    }
+
+    public var isTerminal: Bool {
+        switch kind {
+        case .responseCompleted, .responseError, .done:
+            return true
+        default:
+            return false
+        }
     }
 }

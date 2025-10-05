@@ -28,13 +28,21 @@ struct HTTPRequest<Body: Encodable & Sendable>: Sendable {
 final class HTTPClient: @unchecked Sendable {
     let configuration: PicoResponsesConfiguration
     private let session: URLSession
+    private let streamConfiguration: URLSessionConfiguration
 
     init(configuration: PicoResponsesConfiguration) {
         self.configuration = configuration
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = configuration.timeout
-        config.timeoutIntervalForResource = configuration.timeout
-        self.session = URLSession(configuration: config)
+        let requestConfig = URLSessionConfiguration.default
+        requestConfig.timeoutIntervalForRequest = configuration.timeout
+        requestConfig.timeoutIntervalForResource = configuration.timeout
+        self.session = URLSession(configuration: requestConfig)
+
+        let streamTimeout = configuration.streamingTimeout ?? configuration.timeout
+        let streamConfig = URLSessionConfiguration.default
+        streamConfig.timeoutIntervalForRequest = streamTimeout
+        streamConfig.timeoutIntervalForResource = streamTimeout
+        streamConfig.waitsForConnectivity = true
+        self.streamConfiguration = streamConfig
     }
 
     func send<Body: Encodable, Response: Decodable & Sendable>(
@@ -72,7 +80,7 @@ final class HTTPClient: @unchecked Sendable {
             Task {
                 do {
                     let urlRequest = try makeURLRequest(for: request, encoder: encoder)
-                    let eventSource = EventSource(request: urlRequest, configuration: session.configuration)
+                    let eventSource = EventSource(request: urlRequest, configuration: streamConfiguration)
                     await state.setEventSource(eventSource)
 
                     eventSource.onMessage = { event in
