@@ -57,7 +57,7 @@ final class HTTPClient: @unchecked Sendable {
                 throw PicoResponsesError.networkError(underlying: URLError(.badServerResponse))
             }
             guard (200..<300).contains(httpResponse.statusCode) else {
-                throw PicoResponsesError.httpError(statusCode: httpResponse.statusCode, data: data)
+                throw makeAPIError(statusCode: httpResponse.statusCode, data: data)
             }
             do {
                 return try decoder.decode(Response.self, from: data)
@@ -121,6 +121,38 @@ final class HTTPClient: @unchecked Sendable {
         }
     }
 
+    func sendRawData(
+        method: HTTPRequest<EmptyBody>.Method,
+        path: String,
+        query: [URLQueryItem]? = nil,
+        headers: [String: String]? = nil
+    ) async throws -> Data {
+        let request = try makeBaseRequest(
+            method: method,
+            path: path,
+            query: query,
+            headers: headers
+        )
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw PicoResponsesError.networkError(underlying: URLError(.badServerResponse))
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw makeAPIError(statusCode: httpResponse.statusCode, data: data)
+            }
+            return data
+        } catch {
+            if let error = error as? PicoResponsesError {
+                throw error
+            }
+            if (error as? CancellationError) != nil {
+                throw error
+            }
+            throw PicoResponsesError.networkError(underlying: error)
+        }
+    }
+
     private func mapStreamError(_ error: Error) -> PicoResponsesError {
         if let picoError = error as? PicoResponsesError {
             return picoError
@@ -140,31 +172,12 @@ final class HTTPClient: @unchecked Sendable {
     }
 
     private func makeURLRequest<Body: Encodable>(for request: HTTPRequest<Body>, encoder: JSONEncoder) throws -> URLRequest {
-        let resolvedURL: URL
-        if request.path.hasPrefix("http") {
-            guard let url = URL(string: request.path) else { throw PicoResponsesError.invalidURL }
-            resolvedURL = url
-        } else {
-            resolvedURL = configuration.baseURL.appendingPathComponent(request.path)
-        }
-        var components = URLComponents(url: resolvedURL, resolvingAgainstBaseURL: true)
-        components?.queryItems = request.query
-        guard let url = components?.url else { throw PicoResponsesError.invalidURL }
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = request.method.rawValue
-        request.headers?.forEach { key, value in
-            urlRequest.setValue(value, forHTTPHeaderField: key)
-        }
-        urlRequest.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        if let organizationId = configuration.organizationId {
-            urlRequest.setValue(organizationId, forHTTPHeaderField: "OpenAI-Organization")
-        }
-        if let projectId = configuration.projectId {
-            urlRequest.setValue(projectId, forHTTPHeaderField: "OpenAI-Project")
-        }
-        if urlRequest.value(forHTTPHeaderField: "Accept") == nil {
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-        }
+        var urlRequest = try makeBaseRequest(
+            method: request.method,
+            path: request.path,
+            query: request.query,
+            headers: request.headers
+        )
         if let body = request.body {
             do {
                 urlRequest.httpBody = try encoder.encode(body)
@@ -178,10 +191,132 @@ final class HTTPClient: @unchecked Sendable {
         return urlRequest
     }
 
+    fileprivate func makeBaseRequest<Body>(
+        method: HTTPRequest<Body>.Method,
+        path: String,
+        query: [URLQueryItem]?,
+        headers: [String: String]?
+    ) throws -> URLRequest {
+        let resolvedURL: URL
+        if path.hasPrefix("http") {
+            guard let url = URL(string: path) else { throw PicoResponsesError.invalidURL }
+            resolvedURL = url
+        } else {
+            resolvedURL = configuration.baseURL.appendingPathComponent(path)
+        }
+        var components = URLComponents(url: resolvedURL, resolvingAgainstBaseURL: true)
+        components?.queryItems = query
+        guard let url = components?.url else { throw PicoResponsesError.invalidURL }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = method.rawValue
+        headers?.forEach { key, value in
+            urlRequest.setValue(value, forHTTPHeaderField: key)
+        }
+        urlRequest.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        if let organizationId = configuration.organizationId {
+            urlRequest.setValue(organizationId, forHTTPHeaderField: "OpenAI-Organization")
+        }
+        if let projectId = configuration.projectId {
+            urlRequest.setValue(projectId, forHTTPHeaderField: "OpenAI-Project")
+        }
+        if urlRequest.value(forHTTPHeaderField: "Accept") == nil {
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
+        return urlRequest
+    }
+
     func sessionData(for request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await session.data(for: request)
         } catch {
+            throw PicoResponsesError.networkError(underlying: error)
+        }
+    }
+
+    private func makeAPIError(statusCode: Int, data: Data?) -> PicoResponsesError {
+        guard let data, !data.isEmpty else {
+            return .httpError(statusCode: statusCode, data: data)
+        }
+        if let apiError = try? decodeAPIError(from: data) {
+            return .apiError(statusCode: statusCode, error: apiError, data: data)
+        }
+        return .httpError(statusCode: statusCode, data: data)
+    }
+
+    private func decodeAPIError(from data: Data) throws -> PicoResponsesAPIError {
+        struct Envelope: Decodable {
+            let error: PicoResponsesAPIError
+        }
+        let decoder = JSONDecoder()
+        return try decoder.decode(Envelope.self, from: data).error
+    }
+}
+
+extension HTTPClient {
+    struct MultipartPart: Sendable {
+        let name: String
+        let filename: String?
+        let contentType: String?
+        let data: Data
+
+        init(name: String, data: Data, filename: String? = nil, contentType: String? = nil) {
+            self.name = name
+            self.data = data
+            self.filename = filename
+            self.contentType = contentType
+        }
+    }
+
+    func sendMultipart(
+        method: HTTPRequest<EmptyBody>.Method,
+        path: String,
+        query: [URLQueryItem]? = nil,
+        headers: [String: String]? = nil,
+        parts: [MultipartPart]
+    ) async throws -> Data {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var urlRequest = try makeBaseRequest(
+            method: method,
+            path: path,
+            query: query,
+            headers: headers
+        )
+        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        let lineBreak = "\r\n"
+        for part in parts {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            var disposition = "Content-Disposition: form-data; name=\"\(part.name)\""
+            if let filename = part.filename {
+                disposition += "; filename=\"\(filename)\""
+            }
+            body.append("\(disposition)\r\n".data(using: .utf8)!)
+            if let contentType = part.contentType {
+                body.append("Content-Type: \(contentType)\r\n".data(using: .utf8)!)
+            }
+            body.append("\r\n".data(using: .utf8)!)
+            body.append(part.data)
+            body.append(lineBreak.data(using: .utf8)!)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        do {
+            let (data, response) = try await session.upload(for: urlRequest, from: body)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw PicoResponsesError.networkError(underlying: URLError(.badServerResponse))
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw makeAPIError(statusCode: httpResponse.statusCode, data: data)
+            }
+            return data
+        } catch {
+            if let error = error as? PicoResponsesError {
+                throw error
+            }
+            if (error as? CancellationError) != nil {
+                throw error
+            }
             throw PicoResponsesError.networkError(underlying: error)
         }
     }

@@ -24,7 +24,7 @@ public struct FileObject: Codable, Sendable, Equatable, Identifiable {
     public var object: String
     public var purpose: FilePurpose
     public var status: String?
-    public var statusDetails: String?
+    public var statusDetails: [String: AnyCodable]?
 
     public init(
         id: String,
@@ -34,7 +34,7 @@ public struct FileObject: Codable, Sendable, Equatable, Identifiable {
         object: String = "file",
         purpose: FilePurpose,
         status: String? = nil,
-        statusDetails: String? = nil
+        statusDetails: [String: AnyCodable]? = nil
     ) {
         self.id = id
         self.bytes = bytes

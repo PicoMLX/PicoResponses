@@ -3,38 +3,61 @@ import Foundation
 public actor FilesClient {
     private let http: HTTPClient
     private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
 
     public init(configuration: PicoResponsesConfiguration) {
         self.http = HTTPClient(configuration: configuration)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         self.decoder = decoder
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        self.encoder = encoder
     }
 
-    public func list() async throws -> FileList {
-        let request = HTTPRequest<EmptyBody>(method: .get, path: "files")
-        return try await http.send(request, encoder: JSONEncoder(), decoder: decoder)
+    public func list(limit: Int? = nil, after: String? = nil, before: String? = nil, purpose: FilePurpose? = nil) async throws -> FileList {
+        var query: [URLQueryItem] = []
+        if let limit {
+            query.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+        if let after {
+            query.append(URLQueryItem(name: "after", value: after))
+        }
+        if let before {
+            query.append(URLQueryItem(name: "before", value: before))
+        }
+        if let purpose {
+            query.append(URLQueryItem(name: "purpose", value: purpose.rawValue))
+        }
+        let request = HTTPRequest<EmptyBody>(method: .get, path: "files", query: query.isEmpty ? nil : query)
+        return try await http.send(request, encoder: encoder, decoder: decoder)
     }
 
     public func retrieve(id: String) async throws -> FileObject {
         let request = HTTPRequest<EmptyBody>(method: .get, path: "files/\(id)")
-        return try await http.send(request, encoder: JSONEncoder(), decoder: decoder)
+        return try await http.send(request, encoder: encoder, decoder: decoder)
     }
 
     public func delete(id: String) async throws -> FileDeletion {
         let request = HTTPRequest<EmptyBody>(method: .delete, path: "files/\(id)")
-        return try await http.send(request, encoder: JSONEncoder(), decoder: decoder)
+        return try await http.send(request, encoder: encoder, decoder: decoder)
     }
 
     public func upload(_ payload: FileUploadRequest) async throws -> FileObject {
-        let request = try makeMultipartRequest(path: "files", payload: payload)
-        let (data, response) = try await http.sessionData(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw PicoResponsesError.networkError(underlying: URLError(.badServerResponse))
-        }
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw PicoResponsesError.httpError(statusCode: httpResponse.statusCode, data: data)
-        }
+        let parts: [HTTPClient.MultipartPart] = [
+            .init(name: "purpose", data: Data(payload.purpose.rawValue.utf8)),
+            .init(
+                name: "file",
+                data: payload.data,
+                filename: payload.filename,
+                contentType: payload.mimeType
+            )
+        ]
+        let data = try await http.sendMultipart(
+            method: .post,
+            path: "files",
+            parts: parts
+        )
         do {
             return try decoder.decode(FileObject.self, from: data)
         } catch {
@@ -43,57 +66,10 @@ public actor FilesClient {
     }
 
     public func retrieveContent(id: String) async throws -> Data {
-        let configuration = http.configuration
-        let url = configuration.baseURL.appendingPathComponent("files/\(id)/content")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        applyAuthHeaders(to: &request)
-        let (data, response) = try await http.sessionData(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw PicoResponsesError.networkError(underlying: URLError(.badServerResponse))
-        }
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw PicoResponsesError.httpError(statusCode: httpResponse.statusCode, data: data)
-        }
-        return data
-    }
-
-    private func makeMultipartRequest(path: String, payload: FileUploadRequest) throws -> URLRequest {
-        let configuration = http.configuration
-        let url = configuration.baseURL.appendingPathComponent(path)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        let boundary = "Boundary-\(UUID().uuidString)"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        applyAuthHeaders(to: &request)
-
-        var body = Data()
-        let lineBreak = "\r\n"
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"purpose\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(payload.purpose.rawValue)\r\n".data(using: .utf8)!)
-
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(payload.filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(payload.mimeType)\r\n\r\n".data(using: .utf8)!)
-        body.append(payload.data)
-        body.append(lineBreak.data(using: .utf8)!)
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-        request.httpBody = body
-        return request
-    }
-
-    private func applyAuthHeaders(to request: inout URLRequest) {
-        let configuration = http.configuration
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        if let organizationId = configuration.organizationId {
-            request.setValue(organizationId, forHTTPHeaderField: "OpenAI-Organization")
-        }
-        if let projectId = configuration.projectId {
-            request.setValue(projectId, forHTTPHeaderField: "OpenAI-Project")
-        }
+        try await http.sendRawData(
+            method: .get,
+            path: "files/\(id)/content"
+        )
     }
 }
 
