@@ -1,3 +1,4 @@
+import EventSource
 import Foundation
 
 struct HTTPRequest<Body: Encodable & Sendable>: Sendable {
@@ -6,12 +7,20 @@ struct HTTPRequest<Body: Encodable & Sendable>: Sendable {
     let method: Method
     let path: String
     let query: [URLQueryItem]?
+    let headers: [String: String]?
     let body: Body?
 
-    init(method: Method, path: String, query: [URLQueryItem]? = nil, body: Body? = nil) {
+    init(
+        method: Method,
+        path: String,
+        query: [URLQueryItem]? = nil,
+        headers: [String: String]? = nil,
+        body: Body? = nil
+    ) {
         self.method = method
         self.path = path
         self.query = query
+        self.headers = headers
         self.body = body
     }
 }
@@ -56,22 +65,70 @@ final class HTTPClient: @unchecked Sendable {
     func sendStream<Body: Encodable>(
         _ request: HTTPRequest<Body>,
         encoder: JSONEncoder
-    ) -> AsyncThrowingStream<Data, Error> {
+    ) -> AsyncThrowingStream<EventSource.Event, Error> {
         AsyncThrowingStream { continuation in
-            let task: URLSessionDataTask
-            do {
-                let urlRequest = try makeURLRequest(for: request, encoder: encoder)
-                let delegate = StreamDelegate(continuation: continuation)
-                let streamSession = URLSession(configuration: session.configuration, delegate: delegate, delegateQueue: nil)
-                delegate.session = streamSession
-                task = streamSession.dataTask(with: urlRequest)
-                delegate.task = task
-            } catch {
-                continuation.finish(throwing: error)
-                return
+            let state = EventStreamState()
+
+            Task {
+                do {
+                    let urlRequest = try makeURLRequest(for: request, encoder: encoder)
+                    let eventSource = EventSource(request: urlRequest, configuration: session.configuration)
+                    await state.setEventSource(eventSource)
+
+                    eventSource.onMessage = { event in
+                        continuation.yield(event)
+                    }
+
+                    eventSource.onError = { error in
+                        Task {
+                            guard let source = await state.markFinished() else { return }
+                            await source.close()
+                            guard let error else {
+                                continuation.finish()
+                                return
+                            }
+                            if error is CancellationError {
+                                continuation.finish()
+                            } else {
+                                continuation.finish(throwing: self.mapStreamError(error))
+                            }
+                        }
+                    }
+                } catch {
+                    if let picoError = error as? PicoResponsesError {
+                        continuation.finish(throwing: picoError)
+                    } else {
+                        continuation.finish(throwing: PicoResponsesError.networkError(underlying: error))
+                    }
+                }
             }
-            task.resume()
+
+            continuation.onTermination = { _ in
+                Task {
+                    if let source = await state.cancel() {
+                        await source.close()
+                    }
+                }
+            }
         }
+    }
+
+    private func mapStreamError(_ error: Error) -> PicoResponsesError {
+        if let picoError = error as? PicoResponsesError {
+            return picoError
+        }
+        if let eventError = error as? EventSourceError {
+            switch eventError {
+            case .invalidHTTPStatus(let status):
+                return .httpError(statusCode: status, data: Data())
+            case .invalidContentType:
+                return .streamDecodingFailed(underlying: eventError)
+            }
+        }
+        if let urlError = error as? URLError {
+            return .networkError(underlying: urlError)
+        }
+        return .networkError(underlying: error)
     }
 
     private func makeURLRequest<Body: Encodable>(for request: HTTPRequest<Body>, encoder: JSONEncoder) throws -> URLRequest {
@@ -87,8 +144,9 @@ final class HTTPClient: @unchecked Sendable {
         guard let url = components?.url else { throw PicoResponsesError.invalidURL }
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.headers?.forEach { key, value in
+            urlRequest.setValue(value, forHTTPHeaderField: key)
+        }
         urlRequest.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
         if let organizationId = configuration.organizationId {
             urlRequest.setValue(organizationId, forHTTPHeaderField: "OpenAI-Organization")
@@ -96,51 +154,20 @@ final class HTTPClient: @unchecked Sendable {
         if let projectId = configuration.projectId {
             urlRequest.setValue(projectId, forHTTPHeaderField: "OpenAI-Project")
         }
+        if urlRequest.value(forHTTPHeaderField: "Accept") == nil {
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
         if let body = request.body {
             do {
                 urlRequest.httpBody = try encoder.encode(body)
             } catch {
                 throw PicoResponsesError.requestEncodingFailed(underlying: error)
             }
+            if urlRequest.value(forHTTPHeaderField: "Content-Type") == nil {
+                urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            }
         }
         return urlRequest
-    }
-
-    private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
-        private let queue = DispatchQueue(label: "PicoResponsesCore.StreamDelegate")
-        private let continuation: AsyncThrowingStream<Data, Error>.Continuation
-        fileprivate weak var task: URLSessionDataTask?
-        fileprivate var session: URLSession?
-
-        init(continuation: AsyncThrowingStream<Data, Error>.Continuation) {
-            self.continuation = continuation
-        }
-
-        func urlSession(
-            _ session: URLSession,
-            dataTask: URLSessionDataTask,
-            didReceive data: Data
-        ) {
-            queue.async { [continuation] in
-                continuation.yield(data)
-            }
-        }
-
-        func urlSession(
-            _ session: URLSession,
-            task: URLSessionTask,
-            didCompleteWithError error: Error?
-        ) {
-            queue.async { [continuation] in
-                if let error {
-                    continuation.finish(throwing: PicoResponsesError.networkError(underlying: error))
-                } else {
-                    continuation.finish()
-                }
-                session.invalidateAndCancel()
-                self.session = nil
-            }
-        }
     }
 
     func sessionData(for request: URLRequest) async throws -> (Data, URLResponse) {
@@ -149,5 +176,33 @@ final class HTTPClient: @unchecked Sendable {
         } catch {
             throw PicoResponsesError.networkError(underlying: error)
         }
+    }
+}
+
+private actor EventStreamState {
+    private var eventSource: EventSource?
+    private var finished = false
+
+    func setEventSource(_ eventSource: EventSource) async {
+        guard !finished else {
+            await eventSource.close()
+            return
+        }
+        self.eventSource = eventSource
+    }
+
+    func markFinished() async -> EventSource? {
+        guard !finished else { return nil }
+        finished = true
+        let source = eventSource
+        eventSource = nil
+        return source
+    }
+
+    func cancel() async -> EventSource? {
+        finished = true
+        let source = eventSource
+        eventSource = nil
+        return source
     }
 }

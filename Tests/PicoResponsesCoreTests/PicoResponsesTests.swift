@@ -1,6 +1,22 @@
+import EventSource
 import Foundation
 import Testing
 @testable import PicoResponsesCore
+
+private func parseEvents(_ frames: [String]) async -> [EventSource.Event] {
+    let parser = EventSource.Parser()
+    for frame in frames {
+        for byte in frame.utf8 {
+            await parser.consume(byte)
+        }
+    }
+    await parser.finish()
+    var events: [EventSource.Event] = []
+    while let event = await parser.getNextEvent() {
+        events.append(event)
+    }
+    return events
+}
 
 @Test func responseCreateRequestEncoding() throws {
     let request = ResponseCreateRequest(
@@ -268,13 +284,15 @@ import Testing
 }
 
 @Test func responseStreamParserParsesChunks() async throws {
-    let events = [
+    let frames = [
         "data: {\"type\":\"response.output_text.delta\",\"status\":\"in_progress\",\"item\":{\"id\":\"item_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hel\"}]}}\n\n",
         "data: {\"type\":\"response.output_text.delta\",\"item\":{\"id\":\"item_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"lo\"}]}}\n\n",
         "data: [DONE]\n\n"
-    ].map { Data($0.utf8) }
+    ]
 
-    let stream = AsyncThrowingStream<Data, Error> { continuation in
+    let events = await parseEvents(frames)
+
+    let stream = AsyncThrowingStream<EventSource.Event, Error> { continuation in
         for event in events {
             continuation.yield(event)
         }

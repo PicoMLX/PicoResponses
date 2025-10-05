@@ -17,11 +17,15 @@ let package = Package(
             targets: ["PicoResponsesCore"]
         )
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/mattt/EventSource", from: "1.2.0")
+    ],
     targets: [
         .target(
             name: "PicoResponsesCore",
-            dependencies: []
+            dependencies: [
+                .product(name: "EventSource", package: "EventSource")
+            ]
         ),
         .testTarget(
             name: "PicoResponsesCoreTests",

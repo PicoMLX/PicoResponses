@@ -1,3 +1,4 @@
+import EventSource
 import Foundation
 
 public actor ResponsesClient {
@@ -46,9 +47,19 @@ public actor ResponsesClient {
     }
 
     public func stream(request: ResponseCreateRequest) throws -> AsyncThrowingStream<ResponseStreamEvent, Error> {
-        let httpRequest = HTTPRequest(method: .post, path: "responses", query: [URLQueryItem(name: "stream", value: "true")], body: request)
-        let dataStream = http.sendStream(httpRequest, encoder: encoder)
-        return ResponseStreamParser(decoder: decoder).parse(stream: dataStream)
+        let headers = [
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache"
+        ]
+        let httpRequest = HTTPRequest(
+            method: .post,
+            path: "responses",
+            query: [URLQueryItem(name: "stream", value: "true")],
+            headers: headers,
+            body: request
+        )
+        let eventStream = http.sendStream(httpRequest, encoder: encoder)
+        return ResponseStreamParser(decoder: decoder).parse(stream: eventStream)
     }
 }
 
@@ -65,37 +76,31 @@ struct ResponseStreamParser {
         self.decoder = decoder
     }
 
-    func parse(stream: AsyncThrowingStream<Data, Error>) -> AsyncThrowingStream<ResponseStreamEvent, Error> {
+    func parse(stream: AsyncThrowingStream<EventSource.Event, Error>) -> AsyncThrowingStream<ResponseStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             Task {
-                var buffer = Data()
                 do {
-                    for try await data in stream {
-                        buffer.append(data)
-                        while let range = buffer.range(of: Data([0x0a, 0x0a])) { // double newline
-                            let chunkData = buffer.subdata(in: buffer.startIndex..<range.lowerBound)
-                            buffer.removeSubrange(buffer.startIndex..<range.upperBound)
-                            guard !chunkData.isEmpty else { continue }
-                            guard let line = String(data: chunkData, encoding: .utf8) else { continue }
-                            guard line.hasPrefix("data:") else { continue }
-                            let payloadString = line.dropFirst(5)
-                            let trimmed = payloadString.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if trimmed == "[DONE]" {
-                                continuation.yield(ResponseStreamEvent(type: "done", data: [:]))
-                                continue
-                            }
-                            guard let jsonData = trimmed.data(using: .utf8) else { continue }
-                            do {
-                                let dictionary = try decoder.decode([String: AnyCodable].self, from: jsonData)
-                                let type = dictionary["type"]?.stringValue ?? dictionary["event"]?.stringValue ?? "unknown"
-                                continuation.yield(ResponseStreamEvent(type: type, data: dictionary))
-                            } catch {
-                                let errorPayload: [String: AnyCodable] = [
-                                    "type": AnyCodable("error"),
-                                    "message": AnyCodable("chunk_decoding_failed")
-                                ]
-                                continuation.yield(ResponseStreamEvent(type: "error", data: errorPayload))
-                            }
+                    for try await event in stream {
+                        let trimmed = event.data.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { continue }
+                        if trimmed == "[DONE]" {
+                            continuation.yield(ResponseStreamEvent(type: "done", data: [:]))
+                            continue
+                        }
+                        guard let jsonData = trimmed.data(using: .utf8) else { continue }
+                        do {
+                            let dictionary = try decoder.decode([String: AnyCodable].self, from: jsonData)
+                            let eventType = event.event
+                                ?? dictionary["type"]?.stringValue
+                                ?? dictionary["event"]?.stringValue
+                                ?? "message"
+                            continuation.yield(ResponseStreamEvent(type: eventType, data: dictionary))
+                        } catch {
+                            let errorPayload: [String: AnyCodable] = [
+                                "type": AnyCodable("error"),
+                                "message": AnyCodable("chunk_decoding_failed")
+                            ]
+                            continuation.yield(ResponseStreamEvent(type: "error", data: errorPayload))
                         }
                     }
                     continuation.finish()
