@@ -161,6 +161,112 @@ import Testing
     }
 }
 
+@Test func responseToolDefinitionEncodesMCPMetadata() throws {
+    let definition = ResponseToolDefinition(
+        name: "calendar",
+        description: "Calendar availability",
+        inputSchema: .object(properties: [:]),
+        mcpServer: ResponseToolDefinition.MCPServer(
+            label: "Primary Calendar",
+            url: URL(string: "https://mcp.example.com")!,
+            transport: "sse",
+            version: "2024-09-01",
+            auth: ["type": AnyCodable("bearer"), "scopes": AnyCodable(["calendar.read"])],
+            options: ["region": AnyCodable("us-west-2")],
+            metadata: ["environment": AnyCodable("prod")]
+        )
+    )
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(definition)
+    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+    let server = json? ["server"] as? [String: Any]
+    #expect(server? ["label"] as? String == "Primary Calendar")
+    #expect(server? ["url"] as? String == "https://mcp.example.com")
+    #expect(server? ["transport"] as? String == "sse")
+    #expect(server? ["version"] as? String == "2024-09-01")
+    let auth = json? ["server_auth"] as? [String: Any]
+    #expect(auth? ["type"] as? String == "bearer")
+    let scopes = auth? ["scopes"] as? [String]
+    #expect(scopes?.contains("calendar.read") == true)
+    let options = json? ["server_options"] as? [String: Any]
+    #expect(options? ["region"] as? String == "us-west-2")
+    #expect(json? ["server_label"] as? String == "Primary Calendar")
+    #expect(json? ["server_url"] as? String == "https://mcp.example.com")
+    let metadata = json? ["server_metadata"] as? [String: Any]
+    #expect(metadata? ["environment"] as? String == "prod")
+}
+
+@Test func responseToolCallDecodesMCPDetails() throws {
+    let payload: [String: Any] = [
+        "type": "tool_call",
+        "id": "call_123",
+        "name": "find_calendar_slot",
+        "arguments": ["date": "2024-12-01", "participants": ["alice", "bob"]],
+        "status": "completed",
+        "started_at": 100.5,
+        "completed_at": 102.75,
+        "metadata": ["attempt": 2],
+        "execution_context": ["span_id": "span_456"],
+        "file_ids": ["file_A"],
+        "error": ["code": "warning", "message": "Minor delay"]
+    ]
+
+    let data = try JSONSerialization.data(withJSONObject: payload)
+    let decoder = JSONDecoder()
+    let call = try decoder.decode(ResponseToolCall.self, from: data)
+
+    #expect(call.id == "call_123")
+    #expect(call.name == "find_calendar_slot")
+    #expect(call.arguments.dictionaryValue? ["date"]?.stringValue == "2024-12-01")
+    let participants = call.arguments.dictionaryValue? ["participants"]?.arrayValue?.compactMap { $0.stringValue }
+    #expect(participants == ["alice", "bob"])
+    #expect(call.status == "completed")
+    #expect(call.startedAt == Date(timeIntervalSince1970: 100.5))
+    #expect(call.completedAt == Date(timeIntervalSince1970: 102.75))
+    #expect(call.metadata? ["attempt"]?.intValue == 2)
+    #expect(call.executionContext? ["span_id"]?.stringValue == "span_456")
+    #expect(call.fileIds == ["file_A"])
+    #expect(call.error?.code == "warning")
+
+    let encoded = try JSONEncoder().encode(call)
+    let encodedJSON = try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+    #expect(encodedJSON? ["started_at"] as? Double == 100.5)
+    #expect((encodedJSON? ["metadata"] as? [String: Any])? ["attempt"] as? Int == 2)
+}
+
+@Test func responseToolOutputHandlesStructuredPayloads() throws {
+    let jsonPayload: [String: Any] = [
+        "type": "tool_output",
+        "tool_call_id": "call_123",
+        "output": ["status": "ok", "count": 2],
+        "content_type": "application/json",
+        "metadata": ["duration_ms": 120]
+    ]
+
+    let data = try JSONSerialization.data(withJSONObject: jsonPayload)
+    let decoder = JSONDecoder()
+    let output = try decoder.decode(ResponseToolOutput.self, from: data)
+
+    #expect(output.toolCallId == "call_123")
+    #expect(output.contentType == "application/json")
+    #expect(output.jsonValue? ["status"]?.stringValue == "ok")
+    #expect(output.jsonValue? ["count"]?.intValue == 2)
+    #expect(output.metadata? ["duration_ms"]?.intValue == 120)
+
+    let textOutput = ResponseToolOutput(
+        toolCallId: "call_text",
+        payload: .string("{\"summary\":\"done\"}")
+    )
+    let encoded = try JSONEncoder().encode(textOutput)
+    let encodedJSON = try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+    #expect(encodedJSON? ["output"] as? String == "{\"summary\":\"done\"}")
+    let decodedText = try decoder.decode(ResponseToolOutput.self, from: encoded)
+    #expect(decodedText.stringValue == "{\"summary\":\"done\"}")
+}
+
 @Test func responseStreamParserParsesChunks() async throws {
     let events = [
         "data: {\"type\":\"response.output_text.delta\",\"status\":\"in_progress\",\"item\":{\"id\":\"item_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hel\"}]}}\n\n",
