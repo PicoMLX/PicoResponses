@@ -15,6 +15,10 @@ let package = Package(
         .library(
             name: "PicoResponsesCore",
             targets: ["PicoResponsesCore"]
+        ),
+        .library(
+            name: "PicoResponsesSwiftUI",
+            targets: ["PicoResponsesSwiftUI"]
         )
     ],
     dependencies: [
@@ -25,6 +29,12 @@ let package = Package(
             name: "PicoResponsesCore",
             dependencies: [
                 .product(name: "EventSource", package: "EventSource")
+            ]
+        ),
+        .target(
+            name: "PicoResponsesSwiftUI",
+            dependencies: [
+                "PicoResponsesCore"
             ]
         ),
         .testTarget(
