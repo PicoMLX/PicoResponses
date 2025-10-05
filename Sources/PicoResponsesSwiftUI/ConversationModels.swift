@@ -2,34 +2,37 @@ import Foundation
 
 public enum ConversationResponsePhase: Sendable, Equatable {
     case idle
-    case submitting
+    case preparing
+    case awaitingResponse
     case streaming
+    case paused
     case completed
-    case failed
+    case failed(error: String)
 }
 
-public enum ConversationWebSearchState: Sendable, Equatable {
+public enum ConversationWebSearchPhase: Sendable, Equatable {
     case none
-    case initiated
+    case initiated(query: String?)
+    case searching
+    case analyzing
+    case completed
+    case failed(reason: String?)
+}
+
+public enum ConversationFileSearchPhase: Sendable, Equatable {
+    case none
+    case preparing
     case searching
     case completed
-    case failed
+    case failed(reason: String?)
 }
 
-public enum ConversationFileSearchState: Sendable, Equatable {
+public enum ConversationReasoningPhase: Sendable, Equatable {
     case none
-    case indexing
-    case searching
-    case completed
-    case failed
-}
-
-public enum ConversationReasoningState: Sendable, Equatable {
-    case none
-    case planning
+    case drafting
     case reasoning
-    case completed
-    case failed
+    case completed(summary: String?)
+    case failed(reason: String?)
 }
 
 public struct ConversationMessage: Identifiable, Equatable, Sendable {
@@ -51,34 +54,64 @@ public struct ConversationMessage: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct ConversationServiceResult: Sendable, Equatable {
+public struct ConversationStateSnapshot: Sendable, Equatable {
     public var messages: [ConversationMessage]
-    public var webSearch: ConversationWebSearchState
-    public var fileSearch: ConversationFileSearchState
-    public var reasoning: ConversationReasoningState
+    public var responsePhase: ConversationResponsePhase
+    public var webSearchPhase: ConversationWebSearchPhase
+    public var fileSearchPhase: ConversationFileSearchPhase
+    public var reasoningPhase: ConversationReasoningPhase
 
     public init(
         messages: [ConversationMessage] = [],
-        webSearch: ConversationWebSearchState = .none,
-        fileSearch: ConversationFileSearchState = .none,
-        reasoning: ConversationReasoningState = .none
+        responsePhase: ConversationResponsePhase = .idle,
+        webSearchPhase: ConversationWebSearchPhase = .none,
+        fileSearchPhase: ConversationFileSearchPhase = .none,
+        reasoningPhase: ConversationReasoningPhase = .none
     ) {
         self.messages = messages
-        self.webSearch = webSearch
-        self.fileSearch = fileSearch
-        self.reasoning = reasoning
+        self.responsePhase = responsePhase
+        self.webSearchPhase = webSearchPhase
+        self.fileSearchPhase = fileSearchPhase
+        self.reasoningPhase = reasoningPhase
     }
 }
 
 public protocol ConversationService: Sendable {
-    func sendPrompt(_ prompt: String) async throws -> ConversationServiceResult
+    func startConversation(with messages: [ConversationMessage]) async -> AsyncThrowingStream<ConversationStateSnapshot, Error>
+    func cancelActiveConversation() async
 }
 
 public struct PreviewConversationService: ConversationService {
     public init() {}
 
-    public func sendPrompt(_ prompt: String) async throws -> ConversationServiceResult {
-        let response = ConversationMessage(role: .assistant, text: "Echo: \(prompt)")
-        return ConversationServiceResult(messages: [response])
+    public func startConversation(with messages: [ConversationMessage]) async -> AsyncThrowingStream<ConversationStateSnapshot, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(
+                ConversationStateSnapshot(
+                    messages: messages,
+                    responsePhase: .awaitingResponse
+                )
+            )
+            let response = ConversationMessage(role: .assistant, text: "Echo: \(messages.last?.text ?? "")")
+            let finalSnapshot = ConversationStateSnapshot(
+                messages: messages + [response],
+                responsePhase: .completed
+            )
+            continuation.yield(finalSnapshot)
+            continuation.finish()
+        }
+    }
+
+    public func cancelActiveConversation() async {}
+}
+
+public extension ConversationResponsePhase {
+    var isStreaming: Bool {
+        switch self {
+        case .awaitingResponse, .streaming:
+            return true
+        default:
+            return false
+        }
     }
 }

@@ -40,6 +40,10 @@ let package = Package(
         .testTarget(
             name: "PicoResponsesCoreTests",
             dependencies: ["PicoResponsesCore"]
+        ),
+        .testTarget(
+            name: "PicoResponsesSwiftUITests",
+            dependencies: ["PicoResponsesSwiftUI"]
         )
     ]
 )
