@@ -1,6 +1,15 @@
 {
-  "originHash" : "2f8bde66a29d08fbcffddb2f4e8b6b2241c1191cc8fe755be2a5d976ff771f29",
+  "originHash" : "e343d8b88d90a17593468efd098d282afb45968e606895450a86a6477a8c7b31",
   "pins" : [
+    {
+      "identity" : "bonjourpico",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/PicoMLX/BonjourPico",
+      "state" : {
+        "revision" : "e8b8c906d4c0e5da34d6e81a82d4cdd62a7c0d5b",
+        "version" : "0.0.1"
+      }
+    },
     {
       "identity" : "eventsource",
       "kind" : "remoteSourceControl",

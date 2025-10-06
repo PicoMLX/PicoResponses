@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F8E2A9E02E92E3FC00EFF610 /* PicoResponsesCore in Frameworks */ = {isa = PBXBuildFile; productRef = F8E2A9DF2E92E3FC00EFF610 /* PicoResponsesCore */; };
 		F8E2A9E22E92E3FC00EFF610 /* PicoResponsesSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = F8E2A9E12E92E3FC00EFF610 /* PicoResponsesSwiftUI */; };
+		F8E2A9F32E94376500EFF610 /* BonjourPico in Frameworks */ = {isa = PBXBuildFile; productRef = F8E2A9F22E94376500EFF610 /* BonjourPico */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F8E2A9F32E94376500EFF610 /* BonjourPico in Frameworks */,
 				F8E2A9E22E92E3FC00EFF610 /* PicoResponsesSwiftUI in Frameworks */,
 				F8E2A9E02E92E3FC00EFF610 /* PicoResponsesCore in Frameworks */,
 			);
@@ -74,6 +76,7 @@
 			packageProductDependencies = (
 				F8E2A9DF2E92E3FC00EFF610 /* PicoResponsesCore */,
 				F8E2A9E12E92E3FC00EFF610 /* PicoResponsesSwiftUI */,
+				F8E2A9F22E94376500EFF610 /* BonjourPico */,
 			);
 			productName = ResponsesExample;
 			productReference = F8E2A9A82E92D91600EFF610 /* ResponsesExample.app */;
@@ -105,6 +108,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				F8E2A9DE2E92E3FC00EFF610 /* XCLocalSwiftPackageReference "../../PicoResponses" */,
+				F8E2A9F12E94376500EFF610 /* XCRemoteSwiftPackageReference "BonjourPico" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F8E2A9A92E92D91600EFF610 /* Products */;
@@ -371,6 +375,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		F8E2A9F12E94376500EFF610 /* XCRemoteSwiftPackageReference "BonjourPico" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PicoMLX/BonjourPico";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		F8E2A9DF2E92E3FC00EFF610 /* PicoResponsesCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -379,6 +394,11 @@
 		F8E2A9E12E92E3FC00EFF610 /* PicoResponsesSwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PicoResponsesSwiftUI;
+		};
+		F8E2A9F22E94376500EFF610 /* BonjourPico */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8E2A9F12E94376500EFF610 /* XCRemoteSwiftPackageReference "BonjourPico" */;
+			productName = BonjourPico;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
