@@ -12,13 +12,12 @@ struct ConnectServerView: View {
     
     @State var bonjourPico = BonjourPico()
     @Binding var serverURL: String?
+    @State private var selection: PicoHomelabModel?
     
     var body: some View {
         VStack {
-            List(bonjourPico.servers, id: \.self) { server in
-                let domain = "\(server.hostName):\(server.port)"
-                let ip = "\(server.ipAddress):\(server.port)"
-                Text("\(server.name): \(domain) \(ip)")
+            List(bonjourPico.servers, id: \.self, selection: $selection) { server in
+                Text("\(server.name)")
             }
             
             Button(bonjourPico.isScanning ? "Stop scanning" : "Scan for Pico AI Homelab servers") {
@@ -26,5 +25,12 @@ struct ConnectServerView: View {
             }
         }
         .padding()
+        .onChange(of: selection) { _, server in
+            guard let server else { return }
+            serverURL = "http://\(server.ipAddress):\(server.port)"
+        }
+        .onAppear {
+            bonjourPico.startStop()
+        }
     }
 }
