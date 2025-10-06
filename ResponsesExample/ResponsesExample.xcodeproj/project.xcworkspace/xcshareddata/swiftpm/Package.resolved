@@ -1,0 +1,15 @@
+{
+  "originHash" : "2f8bde66a29d08fbcffddb2f4e8b6b2241c1191cc8fe755be2a5d976ff771f29",
+  "pins" : [
+    {
+      "identity" : "eventsource",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/EventSource",
+      "state" : {
+        "revision" : "a2965424a4babeb0c8e4b5ec9708c3939bc52449",
+        "version" : "1.2.0"
+      }
+    }
+  ],
+  "version" : 3
+}
