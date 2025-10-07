@@ -10,6 +10,7 @@ import SwiftUI
 struct ComposeView: View {
     
     @Binding var text: String
+    @State private var selection: TextSelection?
     var isSending: Bool
     var onSend: () -> Void
     var onStop: () -> Void
@@ -33,7 +34,7 @@ struct ComposeView: View {
                 }
                 .foregroundStyle(.secondary)
                 
-                TextField("Message", text: $text, axis: .vertical)
+                TextField("Message", text: $text, selection: $selection, axis: .vertical)
                     .lineLimit(1...5)
                     .textFieldStyle(.plain)
                     .focused($isTextFieldFocused)
@@ -46,6 +47,11 @@ struct ComposeView: View {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.gray.opacity(0.2))
                     )
+                    .onKeyPress(.return, phases: [.down, .repeat]) { keyPress in
+                        guard keyPress.modifiers.contains(.shift) else { return .ignored }
+                        insertNewlineAtCursor()
+                        return .handled
+                    }
                 
                 if isSending {
                     Button {
@@ -73,6 +79,21 @@ struct ComposeView: View {
         .background(.ultraThinMaterial)
         .onAppear {
             isTextFieldFocused = true
+        }
+    }
+    
+    private func insertNewlineAtCursor() {
+        guard let selection = selection else { return }
+        
+        // Get the cursor position or selection range
+        if case let .selection(range) = selection.indices {
+            // Insert newline at the current cursor position
+            let insertPosition = range.lowerBound
+            text.insert("\n", at: insertPosition)
+            
+            // Update cursor position to be after the inserted newline
+            let newPosition = text.index(after: insertPosition) // FIXME: out of bounds when text is empty or cursor is at end of string
+            self.selection = TextSelection(insertionPoint: newPosition)
         }
     }
 }
