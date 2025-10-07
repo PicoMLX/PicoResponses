@@ -288,12 +288,12 @@ enum ConversationStreamReducer {
             return .completed(name: name, callType: callType)
         }
 
-        if type.contains(".output") {
-            return .awaitingOutput(name: name, callType: callType)
-        }
-
         if containsCreationIndicator(in: type) || type.contains(".delta") {
             return .running(name: name, callType: callType)
+        }
+
+        if type.contains(".output") {
+            return .awaitingOutput(name: name, callType: callType)
         }
 
         return current
