@@ -52,7 +52,7 @@ struct ComposeView: View {
                             .font(.title3)
                     }
                     .buttonStyle(.borderless)
-                    .keyboardShortcut(.escape, modifiers: [])
+                    .keyboardShortcut(".", modifiers: [.command])
                     .accessibilityLabel("Stop streaming")
                 } else {
                     Button {
