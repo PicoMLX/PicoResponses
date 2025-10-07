@@ -63,12 +63,11 @@ struct ConversationView: View {
                 text: $conversation.draft,
                 isSending: conversation.isStreaming,
                 onSend: {
-                print("hit send for prompt: \(conversation.draft)")
 //                conversation.submitOneShotPrompt() // non-streaming
                 conversation.submitPrompt() // streaming
                 },
                 onStop: {
-                    Task { await conversation.cancelStreaming() }
+                    conversation.cancelStreaming()
                 }
             )
         }
