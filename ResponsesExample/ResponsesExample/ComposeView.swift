@@ -12,6 +12,7 @@ struct ComposeView: View {
     @Binding var text: String
     var isSending: Bool
     var onSend: () -> Void
+    var onStop: () -> Void
     
     var body: some View {
         VStack(spacing: 6) {
@@ -43,13 +44,25 @@ struct ComposeView: View {
                             .stroke(Color.gray.opacity(0.2))
                     )
                 
-                Button {
-                    onSend()
-                } label: {
-                    if isSending { ProgressView() } else { Image(systemName: "paperplane.fill") }
+                if isSending {
+                    Button {
+                        onStop()
+                    } label: {
+                        Image(systemName: "stop.circle")
+                            .font(.title3)
+                    }
+                    .buttonStyle(.borderless)
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .accessibilityLabel("Stop streaming")
+                } else {
+                    Button {
+                        onSend()
+                    } label: {
+                        Image(systemName: "paperplane.fill")
+                    }
+                    .keyboardShortcut(.return, modifiers: [.command]) // ⌘↩ to send
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .keyboardShortcut(.return, modifiers: [.command]) // ⌘↩ to send
-                .disabled(isSending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
