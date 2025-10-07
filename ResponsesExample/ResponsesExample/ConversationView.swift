@@ -30,11 +30,20 @@ struct ConversationView: View {
                 }
             }
             
+            if let errorMessage = conversation.lastObservedError,
+               case .failed = conversation.snapshot.responsePhase {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.thinMaterial)
+            }
+            
             // MARK: - Compose bar
             
             ComposeView(text: $conversation.draft, isSending: conversation.isStreaming) {
+                print("hit send for prompt: \(conversation.draft)")
                 conversation.submitPrompt()
-                print("hit send")
             }
         }
     }
