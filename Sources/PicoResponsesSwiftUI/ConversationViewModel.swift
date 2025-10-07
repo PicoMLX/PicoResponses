@@ -49,6 +49,24 @@ public final class ConversationViewModel {
         }
     }
 
+    public func submitOneShotPrompt() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let userMessage = ConversationMessage(role: .user, text: trimmed)
+        draft = ""
+
+        snapshot.messages.append(userMessage)
+        snapshot.responsePhase = .preparing
+        lastObservedError = nil
+
+        streamingTask?.cancel()
+        let messages = snapshot.messages
+        streamingTask = Task { [weak self] in
+            await self?.performOneShot(with: messages)
+        }
+    }
+
     public func cancelStreaming() {
         guard isStreaming else { return }
         isCancelling = true
@@ -100,6 +118,27 @@ public final class ConversationViewModel {
             await MainActor.run {
                 lastObservedError = error.localizedDescription
                 snapshot.responsePhase = .failed(error: error.localizedDescription)
+                isStreaming = false
+                isCancelling = false
+            }
+        }
+    }
+
+    private func performOneShot(with messages: [ConversationMessage]) async {
+        do {
+            let snapshot = try await service.performOneShotConversation(with: messages)
+            await MainActor.run {
+                self.snapshot = snapshot
+                self.isStreaming = false
+                self.isCancelling = false
+            }
+        } catch {
+            if Task.isCancelled {
+                return
+            }
+            await MainActor.run {
+                lastObservedError = error.localizedDescription
+                self.snapshot.responsePhase = .failed(error: error.localizedDescription)
                 isStreaming = false
                 isCancelling = false
             }

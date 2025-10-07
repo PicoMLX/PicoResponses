@@ -45,7 +45,8 @@ struct ConversationView: View {
             
             ComposeView(text: $conversation.draft, isSending: conversation.isStreaming) {
                 print("hit send for prompt: \(conversation.draft)")
-                conversation.submitPrompt()
+//                conversation.submitOneShotPrompt() // non-streaming
+                conversation.submitPrompt() // streaming
             }
         }
     }

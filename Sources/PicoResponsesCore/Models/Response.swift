@@ -406,12 +406,36 @@ public extension ResponseInputItem {
 
 public struct ResponseOutput: Codable, Sendable, Equatable {
     public var id: String
-    public var role: MessageRole
+    public var type: String
+    public var role: MessageRole?
     public var content: [ResponseContentBlock]
     public var status: String?
     public var metadata: [String: AnyCodable]?
     public var finishReason: String?
     public var refusal: ResponseRefusal?
+    public var summary: [AnyCodable]?
+
+    public init(
+        id: String,
+        type: String = "message",
+        role: MessageRole? = nil,
+        content: [ResponseContentBlock] = [],
+        status: String? = nil,
+        metadata: [String: AnyCodable]? = nil,
+        finishReason: String? = nil,
+        refusal: ResponseRefusal? = nil,
+        summary: [AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.role = role
+        self.content = content
+        self.status = status
+        self.metadata = metadata
+        self.finishReason = finishReason
+        self.refusal = refusal
+        self.summary = summary
+    }
 
     public init(
         id: String,
@@ -422,23 +446,55 @@ public struct ResponseOutput: Codable, Sendable, Equatable {
         finishReason: String? = nil,
         refusal: ResponseRefusal? = nil
     ) {
-        self.id = id
-        self.role = role
-        self.content = content
-        self.status = status
-        self.metadata = metadata
-        self.finishReason = finishReason
-        self.refusal = refusal
+        self.init(
+            id: id,
+            type: "message",
+            role: role,
+            content: content,
+            status: status,
+            metadata: metadata,
+            finishReason: finishReason,
+            refusal: refusal,
+            summary: nil
+        )
     }
 
     enum CodingKeys: String, CodingKey {
         case id
+        case type
         case role
         case content
         case status
         case metadata
         case finishReason = "finish_reason"
         case refusal
+        case summary
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.type = try container.decodeIfPresent(String.self, forKey: .type) ?? "message"
+        self.role = try container.decodeIfPresent(MessageRole.self, forKey: .role)
+        self.content = try container.decodeIfPresent([ResponseContentBlock].self, forKey: .content) ?? []
+        self.status = try container.decodeIfPresent(String.self, forKey: .status)
+        self.metadata = try container.decodeIfPresent([String: AnyCodable].self, forKey: .metadata)
+        self.finishReason = try container.decodeIfPresent(String.self, forKey: .finishReason)
+        self.refusal = try container.decodeIfPresent(ResponseRefusal.self, forKey: .refusal)
+        self.summary = try container.decodeIfPresent([AnyCodable].self, forKey: .summary)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(role, forKey: .role)
+        try container.encode(content, forKey: .content)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(metadata, forKey: .metadata)
+        try container.encodeIfPresent(finishReason, forKey: .finishReason)
+        try container.encodeIfPresent(refusal, forKey: .refusal)
+        try container.encodeIfPresent(summary, forKey: .summary)
     }
 }
 

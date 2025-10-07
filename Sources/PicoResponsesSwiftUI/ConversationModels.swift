@@ -79,6 +79,7 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
 public protocol ConversationService: Sendable {
     func startConversation(with messages: [ConversationMessage]) async -> AsyncThrowingStream<ConversationStateSnapshot, Error>
     func cancelActiveConversation() async
+    func performOneShotConversation(with messages: [ConversationMessage]) async throws -> ConversationStateSnapshot
 }
 
 public struct PreviewConversationService: ConversationService {
@@ -103,6 +104,11 @@ public struct PreviewConversationService: ConversationService {
     }
 
     public func cancelActiveConversation() async {}
+
+    public func performOneShotConversation(with messages: [ConversationMessage]) async throws -> ConversationStateSnapshot {
+        let response = ConversationMessage(role: .assistant, text: "Echo: \(messages.last?.text ?? "")")
+        return ConversationStateSnapshot(messages: messages + [response], responsePhase: .completed)
+    }
 }
 
 public extension ConversationResponsePhase {

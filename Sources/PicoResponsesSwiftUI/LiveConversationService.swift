@@ -110,6 +110,21 @@ public actor LiveConversationService: ConversationService {
         activeTask?.cancel()
         activeTask = nil
     }
+
+    public func performOneShotConversation(with messages: [ConversationMessage]) async throws -> ConversationStateSnapshot {
+        var request = requestBuilder.makeRequest(from: messages)
+        request.stream = false
+        let response = try await client.create(request: request)
+        var snapshot = ConversationStateSnapshot(
+            messages: messages,
+            responsePhase: .completed,
+            webSearchPhase: .none,
+            fileSearchPhase: .none,
+            reasoningPhase: .none
+        )
+        snapshot.messages = ConversationStreamReducer.merge(response: response, into: snapshot.messages)
+        return snapshot
+    }
 }
 
 enum ConversationStreamReducer {
@@ -160,14 +175,15 @@ enum ConversationStreamReducer {
         return mutableMessages
     }
 
-    private static func merge(response: ResponseObject, into messages: [ConversationMessage]) -> [ConversationMessage] {
+    static func merge(response: ResponseObject, into messages: [ConversationMessage]) -> [ConversationMessage] {
         var mutableMessages = messages
         var aggregatedMessages: [ConversationMessage] = []
 
         for output in response.output {
             let text = output.content.compactMap { $0.text }.joined()
             guard !text.isEmpty else { continue }
-            let messageRole = ConversationMessage.Role(messageRole: output.role)
+            guard let role = output.role else { continue }
+            let messageRole = ConversationMessage.Role(messageRole: role)
             aggregatedMessages.append(ConversationMessage(role: messageRole, text: text))
         }
 
