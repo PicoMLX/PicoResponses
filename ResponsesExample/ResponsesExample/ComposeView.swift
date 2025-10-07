@@ -13,8 +13,6 @@ struct ComposeView: View {
     var isSending: Bool
     var onSend: () -> Void
     
-    private let maxHeight: CGFloat = 160
-    
     var body: some View {
         VStack(spacing: 6) {
             Divider()
@@ -32,27 +30,18 @@ struct ComposeView: View {
                 }
                 .foregroundStyle(.secondary)
                 
-                ZStack(alignment: .topLeading) {
-                    if text.isEmpty {
-                        Text("Message")
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 12)
-                    }
-                    
-                    TextEditor(text: $text)
-                        .frame(minHeight: 34, maxHeight: maxHeight)
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 8)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.gray.opacity(0.2))
-                )
+                TextField("Message", text: $text, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.2))
+                    )
                 
                 Button {
                     onSend()
