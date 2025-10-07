@@ -17,7 +17,7 @@ struct ComposeView: View {
     var body: some View {
         VStack(spacing: 6) {
             Divider()
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .lastTextBaseline, spacing: 8) {
                 // left accessories (plus, attach, mic)
                 HStack(spacing: 10) {
                     Button { /* show tools */
