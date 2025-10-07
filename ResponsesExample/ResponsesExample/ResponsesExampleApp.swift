@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PicoResponsesCore
 
 @main
 struct ResponsesExampleApp: App {
@@ -15,7 +16,11 @@ struct ResponsesExampleApp: App {
     var body: some Scene {
         WindowGroup {
             if let serverURL {
-                ContentView()
+                let config =  PicoResponsesConfiguration(apiKey: "")
+                let client = ResponsesClient(configuration: config)
+                let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: "gpt-4.1-mini"))
+                let viewModel = ConversationViewModel(service: service)
+                ContentView(config: config)
             } else {
                 ConnectServerView(serverURL: $serverURL)
             }
@@ -24,9 +29,7 @@ struct ResponsesExampleApp: App {
 }
 
 /*
-Add the local PicoResponses package to the example project (File ▸ Add
-   Packages…, Add Local…, select the repo root) and import both
-   PicoResponsesCore and PicoResponsesSwiftUI in the app target. In
+In
    ResponsesExampleApp, read your API key securely, build let config =
    PicoResponsesConfiguration(apiKey:…, streamingTimeout:…), then create let
    client = ResponsesClient(configuration: config) alongside let service =

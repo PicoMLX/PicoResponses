@@ -6,17 +6,32 @@ public struct ConversationRequestBuilder: Sendable {
     public var instructions: String?
     public var parallelToolCalls: Bool?
     public var metadata: [String: AnyCodable]?
+    public var temperature: Double?
+    public var topP: Double?
+    public var frequencyPenalty: Double?
+    public var presencePenalty: Double?
+    public var maxOutputTokens: Int?
 
     public init(
         model: String,
         instructions: String? = nil,
         parallelToolCalls: Bool? = nil,
-        metadata: [String: AnyCodable]? = nil
+        metadata: [String: AnyCodable]? = nil,
+        temperature: Double? = nil,
+        topP: Double? = nil,
+        frequencyPenalty: Double? = nil,
+        presencePenalty: Double? = nil,
+        maxOutputTokens: Int? = nil
     ) {
         self.model = model
         self.instructions = instructions
         self.parallelToolCalls = parallelToolCalls
         self.metadata = metadata
+        self.temperature = temperature
+        self.topP = topP
+        self.frequencyPenalty = frequencyPenalty
+        self.presencePenalty = presencePenalty
+        self.maxOutputTokens = maxOutputTokens
     }
 
     public func makeRequest(from messages: [ConversationMessage]) -> ResponseCreateRequest {
@@ -30,6 +45,11 @@ public struct ConversationRequestBuilder: Sendable {
         request.instructions = instructions
         request.parallelToolCalls = parallelToolCalls
         request.metadata = metadata
+        request.temperature = temperature
+        request.topP = topP
+        request.frequencyPenalty = frequencyPenalty
+        request.presencePenalty = presencePenalty
+        request.maxOutputTokens = maxOutputTokens
         return request
     }
 }
