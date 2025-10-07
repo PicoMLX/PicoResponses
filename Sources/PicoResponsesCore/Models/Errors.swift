@@ -46,3 +46,30 @@ public enum PicoResponsesError: Error, Sendable {
     case networkError(underlying: Error)
     case streamDecodingFailed(underlying: Error)
 }
+
+extension PicoResponsesError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "The request URL could not be constructed."
+        case .requestEncodingFailed(let underlying):
+            return "Failed to encode the request payload: \(underlying.localizedDescription)"
+        case .responseDecodingFailed(let underlying):
+            return "Failed to decode the server response: \(underlying.localizedDescription)"
+        case .httpError(let statusCode, _):
+            return "Request failed with HTTP status code \(statusCode)."
+        case .apiError(_, let apiError, _):
+            if let message = apiError.message, !message.isEmpty {
+                return message
+            }
+            if let type = apiError.type {
+                return "Request failed with API error type \(type)."
+            }
+            return "The server reported an API error."
+        case .networkError(let underlying):
+            return "A network error occurred: \(underlying.localizedDescription)"
+        case .streamDecodingFailed(let underlying):
+            return "Failed to process the streaming response: \(underlying.localizedDescription)"
+        }
+    }
+}

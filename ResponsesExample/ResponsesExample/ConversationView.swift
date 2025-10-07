@@ -37,6 +37,7 @@ struct ConversationView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(.thinMaterial)
+                    .textSelection(.enabled)
             }
             
             // MARK: - Compose bar
