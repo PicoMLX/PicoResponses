@@ -47,7 +47,7 @@ struct ComposeView: View {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.gray.opacity(0.2))
                     )
-                    .onKeyPress(.return, phases: [.down, .repeat]) { keyPress in
+                    .onKeyPress(.return, phases: [.down]) { keyPress in
                         guard keyPress.modifiers.contains(.shift) else { return .ignored }
                         insertNewlineAtCursor()
                         return .handled
@@ -92,8 +92,14 @@ struct ComposeView: View {
             text.insert("\n", at: insertPosition)
             
             // Update cursor position to be after the inserted newline
-            let newPosition = text.index(after: insertPosition) // FIXME: out of bounds when text is empty or cursor is at end of string
-            self.selection = TextSelection(insertionPoint: newPosition)
+            if let newPosition = text.index(insertPosition, offsetBy: 1, limitedBy: text.endIndex) {
+                self.selection = TextSelection(insertionPoint: newPosition)
+            } else {
+                Task { @MainActor in
+                    // DO NOT REMOVE. This fixes a bug. The text length isn't updated when calling TextSelection directly.
+                    self.selection = TextSelection(insertionPoint: text.endIndex)
+                }
+            }
         }
     }
 }
