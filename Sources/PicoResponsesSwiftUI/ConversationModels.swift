@@ -69,6 +69,7 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
     public var fileSearchPhase: ConversationFileSearchPhase
     public var reasoningPhase: ConversationReasoningPhase
     public var toolCallPhase: ConversationToolCallPhase
+    public var lastResponseId: String?
 
     public init(
         messages: [ConversationMessage] = [],
@@ -76,7 +77,8 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
         webSearchPhase: ConversationWebSearchPhase = .none,
         fileSearchPhase: ConversationFileSearchPhase = .none,
         reasoningPhase: ConversationReasoningPhase = .none,
-        toolCallPhase: ConversationToolCallPhase = .none
+        toolCallPhase: ConversationToolCallPhase = .none,
+        lastResponseId: String? = nil
     ) {
         self.messages = messages
         self.responsePhase = responsePhase
@@ -84,30 +86,42 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
         self.fileSearchPhase = fileSearchPhase
         self.reasoningPhase = reasoningPhase
         self.toolCallPhase = toolCallPhase
+        self.lastResponseId = lastResponseId
     }
 }
 
 public protocol ConversationService: Sendable {
-    func startConversation(with messages: [ConversationMessage]) async -> AsyncThrowingStream<ConversationStateSnapshot, Error>
+    func startConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async -> AsyncThrowingStream<ConversationStateSnapshot, Error>
     func cancelActiveConversation() async
-    func performOneShotConversation(with messages: [ConversationMessage]) async throws -> ConversationStateSnapshot
+    func performOneShotConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async throws -> ConversationStateSnapshot
 }
 
 public struct PreviewConversationService: ConversationService {
     public init() {}
 
-    public func startConversation(with messages: [ConversationMessage]) async -> AsyncThrowingStream<ConversationStateSnapshot, Error> {
+    public func startConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async -> AsyncThrowingStream<ConversationStateSnapshot, Error> {
         AsyncThrowingStream { continuation in
             continuation.yield(
                 ConversationStateSnapshot(
                     messages: messages,
-                    responsePhase: .awaitingResponse
+                    responsePhase: .awaitingResponse,
+                    lastResponseId: previousResponseId
                 )
             )
             let response = ConversationMessage(role: .assistant, text: "Echo: \(messages.last?.text ?? "")")
             let finalSnapshot = ConversationStateSnapshot(
                 messages: messages + [response],
-                responsePhase: .completed
+                responsePhase: .completed,
+                lastResponseId: UUID().uuidString
             )
             continuation.yield(finalSnapshot)
             continuation.finish()
@@ -116,9 +130,16 @@ public struct PreviewConversationService: ConversationService {
 
     public func cancelActiveConversation() async {}
 
-    public func performOneShotConversation(with messages: [ConversationMessage]) async throws -> ConversationStateSnapshot {
+    public func performOneShotConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async throws -> ConversationStateSnapshot {
         let response = ConversationMessage(role: .assistant, text: "Echo: \(messages.last?.text ?? "")")
-        return ConversationStateSnapshot(messages: messages + [response], responsePhase: .completed)
+        return ConversationStateSnapshot(
+            messages: messages + [response],
+            responsePhase: .completed,
+            lastResponseId: UUID().uuidString
+        )
     }
 }
 

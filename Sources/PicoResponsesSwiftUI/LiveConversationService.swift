@@ -2,6 +2,11 @@ import Foundation
 import PicoResponsesCore
 
 public struct ConversationRequestBuilder: Sendable {
+    public enum HistoryStrategy: Sendable {
+        case latestMessage
+        case fullConversation
+    }
+
     public var model: String
     public var instructions: String?
     public var parallelToolCalls: Bool?
@@ -11,6 +16,7 @@ public struct ConversationRequestBuilder: Sendable {
     public var frequencyPenalty: Double?
     public var presencePenalty: Double?
     public var maxOutputTokens: Int?
+    public var historyStrategy: HistoryStrategy
 
     public init(
         model: String,
@@ -21,7 +27,8 @@ public struct ConversationRequestBuilder: Sendable {
         topP: Double? = nil,
         frequencyPenalty: Double? = nil,
         presencePenalty: Double? = nil,
-        maxOutputTokens: Int? = nil
+        maxOutputTokens: Int? = nil,
+        historyStrategy: HistoryStrategy = .latestMessage
     ) {
         self.model = model
         self.instructions = instructions
@@ -32,15 +39,28 @@ public struct ConversationRequestBuilder: Sendable {
         self.frequencyPenalty = frequencyPenalty
         self.presencePenalty = presencePenalty
         self.maxOutputTokens = maxOutputTokens
+        self.historyStrategy = historyStrategy
     }
 
-    public func makeRequest(from messages: [ConversationMessage]) -> ResponseCreateRequest {
-        let inputs = messages.map { message in
-            ResponseInputItem.message(
-                role: message.role.messageRole,
-                content: [message.role.contentBlock(text: message.text)]
-            )
+    public func makeRequest(
+        from messages: [ConversationMessage],
+        previousResponseId: String?
+    ) -> ResponseCreateRequest {
+        let inputs: [ResponseInputItem]
+
+        switch historyStrategy {
+        case .fullConversation:
+            inputs = messages.map(Self.makeInputItem)
+        case .latestMessage:
+            if let latestUser = messages.last(where: { $0.role == .user && !$0.text.isEmpty }) {
+                inputs = [Self.makeInputItem(from: latestUser)]
+            } else if let latest = messages.last(where: { !$0.text.isEmpty }) {
+                inputs = [Self.makeInputItem(from: latest)]
+            } else {
+                inputs = []
+            }
         }
+
         var request = ResponseCreateRequest(model: model, input: inputs)
         request.instructions = instructions
         request.parallelToolCalls = parallelToolCalls
@@ -50,7 +70,15 @@ public struct ConversationRequestBuilder: Sendable {
         request.frequencyPenalty = frequencyPenalty
         request.presencePenalty = presencePenalty
         request.maxOutputTokens = maxOutputTokens
+        request.previousResponseId = previousResponseId
         return request
+    }
+
+    private static func makeInputItem(from message: ConversationMessage) -> ResponseInputItem {
+        ResponseInputItem.message(
+            role: message.role.messageRole,
+            content: [message.role.contentBlock(text: message.text)]
+        )
     }
 }
 
@@ -64,8 +92,11 @@ public actor LiveConversationService: ConversationService {
         self.requestBuilder = requestBuilder
     }
 
-    public func startConversation(with messages: [ConversationMessage]) async -> AsyncThrowingStream<ConversationStateSnapshot, Error> {
-        let request = requestBuilder.makeRequest(from: messages)
+    public func startConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async -> AsyncThrowingStream<ConversationStateSnapshot, Error> {
+        let request = requestBuilder.makeRequest(from: messages, previousResponseId: previousResponseId)
         let responseStream: AsyncThrowingStream<ResponseStreamEvent, Error>
         do {
             responseStream = try await client.stream(request: request)
@@ -77,7 +108,8 @@ public actor LiveConversationService: ConversationService {
 
         let initialSnapshot = ConversationStateSnapshot(
             messages: messages,
-            responsePhase: .awaitingResponse
+            responsePhase: .awaitingResponse,
+            lastResponseId: previousResponseId
         )
 
         return AsyncThrowingStream { continuation in
@@ -111,8 +143,11 @@ public actor LiveConversationService: ConversationService {
         activeTask = nil
     }
 
-    public func performOneShotConversation(with messages: [ConversationMessage]) async throws -> ConversationStateSnapshot {
-        var request = requestBuilder.makeRequest(from: messages)
+    public func performOneShotConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async throws -> ConversationStateSnapshot {
+        var request = requestBuilder.makeRequest(from: messages, previousResponseId: previousResponseId)
         request.stream = false
         let response = try await client.create(request: request)
         var snapshot = ConversationStateSnapshot(
@@ -121,7 +156,8 @@ public actor LiveConversationService: ConversationService {
             webSearchPhase: .none,
             fileSearchPhase: .none,
             reasoningPhase: .none,
-            toolCallPhase: .none
+            toolCallPhase: .none,
+            lastResponseId: response.id
         )
         snapshot.messages = ConversationStreamReducer.merge(response: response, into: snapshot.messages)
         return snapshot
@@ -131,6 +167,12 @@ public actor LiveConversationService: ConversationService {
 enum ConversationStreamReducer {
     static func reduce(snapshot: ConversationStateSnapshot, with event: ResponseStreamEvent) -> ConversationStateSnapshot {
         var mutableSnapshot = snapshot
+
+        if let response = event.response {
+            mutableSnapshot.lastResponseId = response.id
+        } else if let responseId = event.responseId {
+            mutableSnapshot.lastResponseId = responseId
+        }
 
         switch event.kind {
         case .responseCreated:
@@ -150,6 +192,7 @@ enum ConversationStreamReducer {
             mutableSnapshot.responsePhase = .completed
             if let response = event.completedResponse {
                 mutableSnapshot.messages = merge(response: response, into: mutableSnapshot.messages)
+                mutableSnapshot.lastResponseId = response.id
             }
         case .responseError:
             let message = event.streamError?.message ?? "Unknown error"

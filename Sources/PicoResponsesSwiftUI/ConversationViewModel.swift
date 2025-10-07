@@ -34,10 +34,11 @@ public final class ConversationViewModel {
     public func submitPrompt() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-
+        
         let userMessage = ConversationMessage(role: .user, text: trimmed)
         draft = ""
-
+        
+        let previousResponseId = snapshot.lastResponseId
         snapshot.messages.append(userMessage)
         snapshot.responsePhase = .preparing
         snapshot.webSearchPhase = .none
@@ -49,7 +50,7 @@ public final class ConversationViewModel {
         streamingTask?.cancel()
         let messages = snapshot.messages
         streamingTask = Task { [weak self] in
-            await self?.streamConversation(with: messages)
+            await self?.streamConversation(with: messages, previousResponseId: previousResponseId)
         }
     }
 
@@ -60,6 +61,7 @@ public final class ConversationViewModel {
         let userMessage = ConversationMessage(role: .user, text: trimmed)
         draft = ""
 
+        let previousResponseId = snapshot.lastResponseId
         snapshot.messages.append(userMessage)
         snapshot.responsePhase = .preparing
         snapshot.webSearchPhase = .none
@@ -71,7 +73,7 @@ public final class ConversationViewModel {
         streamingTask?.cancel()
         let messages = snapshot.messages
         streamingTask = Task { [weak self] in
-            await self?.performOneShot(with: messages)
+            await self?.performOneShot(with: messages, previousResponseId: previousResponseId)
         }
     }
 
@@ -98,8 +100,11 @@ public final class ConversationViewModel {
         lastObservedError = nil
     }
 
-    private func streamConversation(with messages: [ConversationMessage]) async {
-        let stream = await service.startConversation(with: messages)
+    private func streamConversation(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async {
+        let stream = await service.startConversation(with: messages, previousResponseId: previousResponseId)
         await MainActor.run {
             isStreaming = true
             snapshot.responsePhase = .awaitingResponse
@@ -132,9 +137,15 @@ public final class ConversationViewModel {
         }
     }
 
-    private func performOneShot(with messages: [ConversationMessage]) async {
+    private func performOneShot(
+        with messages: [ConversationMessage],
+        previousResponseId: String?
+    ) async {
         do {
-            let snapshot = try await service.performOneShotConversation(with: messages)
+            let snapshot = try await service.performOneShotConversation(
+                with: messages,
+                previousResponseId: previousResponseId
+            )
             await MainActor.run {
                 self.snapshot = snapshot
                 self.isStreaming = false
