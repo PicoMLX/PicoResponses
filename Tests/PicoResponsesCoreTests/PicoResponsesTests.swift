@@ -135,6 +135,21 @@ private func parseEvents(_ frames: [String]) async -> [EventSource.Event] {
     #expect(json? ["seed"] as? Int == 123)
 }
 
+@Test func responseCreateRequestStreamFlagEncoding() throws {
+    var request = ResponseCreateRequest(
+        model: "gpt-4.1-mini",
+        input: [
+            .message(role: .user, content: [.inputText("Hello")])
+        ]
+    )
+    request.stream = true
+
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(request)
+    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    #expect(json? ["stream"] as? Bool == true)
+}
+
 @Test func responseObjectDecodesAdditionalTimestamps() throws {
     let json = """
     {

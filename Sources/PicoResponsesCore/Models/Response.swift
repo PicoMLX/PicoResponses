@@ -590,6 +590,7 @@ public struct ResponseCreateRequest: Codable, Sendable, Equatable {
     public var metadata: [String: AnyCodable]?
     public var temperature: Double?
     public var topP: Double?
+    public var stream: Bool?
     public var frequencyPenalty: Double?
     public var presencePenalty: Double?
     public var stop: [String]?
@@ -615,6 +616,7 @@ public struct ResponseCreateRequest: Codable, Sendable, Equatable {
         metadata: [String: AnyCodable]? = nil,
         temperature: Double? = nil,
         topP: Double? = nil,
+        stream: Bool? = nil,
         frequencyPenalty: Double? = nil,
         presencePenalty: Double? = nil,
         stop: [String]? = nil,
@@ -639,6 +641,7 @@ public struct ResponseCreateRequest: Codable, Sendable, Equatable {
         self.metadata = metadata
         self.temperature = temperature
         self.topP = topP
+        self.stream = stream
         self.frequencyPenalty = frequencyPenalty
         self.presencePenalty = presencePenalty
         self.stop = stop
@@ -665,6 +668,7 @@ public struct ResponseCreateRequest: Codable, Sendable, Equatable {
         case metadata
         case temperature
         case topP = "top_p"
+        case stream
         case frequencyPenalty = "frequency_penalty"
         case presencePenalty = "presence_penalty"
         case stop
@@ -685,20 +689,33 @@ public struct ResponseCreateRequest: Codable, Sendable, Equatable {
 // MARK: - Streaming Events
 
 public struct ResponseDelta: Sendable, Equatable {
-    public let type: String?
-    public let data: [String: AnyCodable]
+    public let raw: AnyCodable
 
-    public init(type: String?, data: [String: AnyCodable]) {
-        self.type = type
-        self.data = data
+    public init(raw: AnyCodable) {
+        self.raw = raw
     }
 
     public var text: String? {
-        data["text"]?.stringValue ?? data["output_text"]?.stringValue
+        if let string = raw.stringValue {
+            return string
+        }
+        if let dictionary = raw.dictionaryValue {
+            if let text = dictionary["text"]?.stringValue {
+                return text
+            }
+            if let delta = dictionary["delta"]?.stringValue {
+                return delta
+            }
+            if let content = dictionary["content"]?.stringValue {
+                return content
+            }
+        }
+        return nil
     }
 
     public var toolCalls: [ResponseToolCall]? {
-        guard let values = data["tool_calls"]?.arrayValue else {
+        guard let dictionary = raw.dictionaryValue,
+              let values = dictionary["tool_calls"]?.arrayValue else {
             return nil
         }
         return values.compactMap { $0.dictionaryValue?.decode(ResponseToolCall.self) }
@@ -756,8 +773,8 @@ public struct ResponseStreamEvent: Sendable, Equatable {
     }
 
     public var delta: ResponseDelta? {
-        guard let payload = data["delta"]?.dictionaryValue else { return nil }
-        return ResponseDelta(type: payload["type"]?.stringValue, data: payload)
+        guard let payload = data["delta"] else { return nil }
+        return ResponseDelta(raw: payload)
     }
 
     public var outputTextDelta: ResponseDelta? {

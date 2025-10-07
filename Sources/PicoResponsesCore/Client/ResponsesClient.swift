@@ -78,12 +78,14 @@ public actor ResponsesClient {
         if let lastEventID {
             requestHeaders["Last-Event-ID"] = lastEventID
         }
+        var streamingRequest = request
+        streamingRequest.stream = true
+
         let httpRequest = HTTPRequest(
             method: .post,
             path: "responses",
-            query: [URLQueryItem(name: "stream", value: "true")],
             headers: requestHeaders.isEmpty ? nil : requestHeaders,
-            body: request
+            body: streamingRequest
         )
         let eventStream = http.sendStream(httpRequest, encoder: encoder)
         return ResponseStreamParser(decoder: decoder).parse(stream: eventStream)
