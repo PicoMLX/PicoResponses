@@ -77,7 +77,7 @@ struct ConversationView: View {
 private extension ConversationView {
     var statusMessages: [String] {
         var messages: [String] = []
-        let _ = Self._printChanges()
+//        let _ = Self._printChanges()
 
         switch conversation.snapshot.responsePhase {
         case .preparing:

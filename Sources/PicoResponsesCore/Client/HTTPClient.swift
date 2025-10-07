@@ -89,6 +89,38 @@ final class HTTPClient: @unchecked Sendable {
 
                     eventSource.onError = { error in
                         Task {
+                            if let eventError = error as? EventSourceError,
+                               case let .invalidHTTPStatus(status) = eventError {
+                                do {
+                                    let (data, response) = try await self.session.data(for: urlRequest)
+                                    let code = (response as? HTTPURLResponse)?.statusCode ?? status
+                                    let apiError = self.makeAPIError(statusCode: code, data: data)
+                                    guard let source = await state.markFinished() else {
+                                        continuation.finish(throwing: apiError)
+                                        return
+                                    }
+                                    await source.close()
+                                    continuation.finish(throwing: apiError)
+                                    return
+                                } catch let picoError as PicoResponsesError {
+                                    guard let source = await state.markFinished() else {
+                                        continuation.finish(throwing: picoError)
+                                        return
+                                    }
+                                    await source.close()
+                                    continuation.finish(throwing: picoError)
+                                    return
+                                } catch {
+                                    guard let source = await state.markFinished() else {
+                                        continuation.finish(throwing: PicoResponsesError.networkError(underlying: error))
+                                        return
+                                    }
+                                    await source.close()
+                                    continuation.finish(throwing: PicoResponsesError.networkError(underlying: error))
+                                    return
+                                }
+                            }
+
                             guard let source = await state.markFinished() else { return }
                             await source.close()
                             guard let error else {

@@ -14,6 +14,8 @@ struct ComposeView: View {
     var onSend: () -> Void
     var onStop: () -> Void
     
+    @FocusState private var isTextFieldFocused: Bool
+    
     var body: some View {
         VStack(spacing: 6) {
             Divider()
@@ -34,6 +36,7 @@ struct ComposeView: View {
                 TextField("Message", text: $text, axis: .vertical)
                     .lineLimit(1...5)
                     .textFieldStyle(.plain)
+                    .focused($isTextFieldFocused)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 8)
                     .background(
@@ -68,5 +71,8 @@ struct ComposeView: View {
             .padding(.vertical, 8)
         }
         .background(.ultraThinMaterial)
+        .onAppear {
+            isTextFieldFocused = true
+        }
     }
 }
