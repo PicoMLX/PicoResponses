@@ -29,30 +29,32 @@ struct ConversationView: View {
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
                     .listRowSeparator(.hidden)
                 }
-            }
-            
-            let statuses = statusMessages
-            if !statuses.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(statuses, id: \.self) { message in
-                        Text(message)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                if let errorMessage = conversation.lastObservedError,
+                   case .failed = conversation.snapshot.responsePhase {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
                     }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            
-            if let errorMessage = conversation.lastObservedError,
-               case .failed = conversation.snapshot.responsePhase {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.thinMaterial)
-                    .textSelection(.enabled)
+
+                let statuses = statusMessages
+                if !statuses.isEmpty {
+                    Section {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(statuses, id: \.self) { message in
+                                Text(message)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                }
             }
             
             // MARK: - Compose bar
@@ -69,6 +71,7 @@ struct ConversationView: View {
 private extension ConversationView {
     var statusMessages: [String] {
         var messages: [String] = []
+        let _ = Self._printChanges()
 
         switch conversation.snapshot.responsePhase {
         case .preparing:
