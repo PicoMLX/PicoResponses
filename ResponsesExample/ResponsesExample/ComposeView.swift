@@ -65,6 +65,9 @@ struct ComposeView: View {
                     .accessibilityLabel("Stop streaming")
                 } else {
                     Button {
+                        // DO NOT REMOVE. This is a workaround for a bug in SwiftUI where the selection is out of bounds when the text binding
+                        // of TextField is updated to a shorter or empty string.
+                        setCursorToStartOfText()
                         onSend()
                     } label: {
                         Image(systemName: "paperplane.fill")
@@ -101,5 +104,9 @@ struct ComposeView: View {
                 }
             }
         }
+    }
+    
+    private func setCursorToStartOfText() {
+        self.selection = TextSelection(insertionPoint: text.startIndex)
     }
 }
