@@ -8,10 +8,10 @@
 import SwiftUI
 import BonjourPico
 
-struct ConnectServerView: View {
+struct SelectServerView: View {
     
     @State var bonjourPico = BonjourPico()
-    @Binding var serverURL: String?
+    @Binding var serverURL: URL?
     @State private var selection: PicoHomelabModel?
     
     var body: some View {
@@ -27,7 +27,11 @@ struct ConnectServerView: View {
         .padding()
         .onChange(of: selection) { _, server in
             guard let server else { return }
-            serverURL = "http://\(server.ipAddress):\(server.port)"
+            guard let url = URL(string: "http://\(server.ipAddress):\(server.port)") else {
+                print("Invalid url: http://\(server.ipAddress):\(server.port)")
+                return
+            }
+            serverURL = url.appendingPathExtension("v1")
         }
         .onAppear {
             bonjourPico.startStop()

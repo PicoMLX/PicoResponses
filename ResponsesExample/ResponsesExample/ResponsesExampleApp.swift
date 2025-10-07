@@ -7,38 +7,28 @@
 
 import SwiftUI
 import PicoResponsesCore
+import PicoResponsesSwiftUI
 
 @main
 struct ResponsesExampleApp: App {
     
-    @State private var serverURL: String?
+    @State private var serverURL: URL?
     
     var body: some Scene {
         WindowGroup {
             if let serverURL {
-                let config =  PicoResponsesConfiguration(apiKey: "")
-                let client = ResponsesClient(configuration: config)
-                let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: "gpt-4.1-mini"))
-                let viewModel = ConversationViewModel(service: service)
-                ContentView(config: config)
+                ConversationView(conversation: createConversation(from: serverURL))
             } else {
-                ConnectServerView(serverURL: $serverURL)
+                SelectServerView(serverURL: $serverURL)
             }
         }
     }
+    
+    func createConversation(from url: URL) -> ConversationViewModel {
+        print("running conversation")
+        let config =  PicoResponsesConfiguration(apiKey: "", baseURL: url)
+        let client = ResponsesClient(configuration: config)
+        let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: "gpt-4.1-mini"))
+        return ConversationViewModel(service: service)
+    }
 }
-
-/*
-In
-   ResponsesExampleApp, read your API key securely, build let config =
-   PicoResponsesConfiguration(apiKey:…, streamingTimeout:…), then create let
-   client = ResponsesClient(configuration: config) alongside let service =
-   LiveConversationService(client: client, requestBuilder:
-   ConversationRequestBuilder(model: "gpt-4.1-mini")). Hold the view model
-   via @State private var viewModel = ConversationViewModel(service: service)
-    (or inject it from a higher-level container) and pass it into
-   ChatView(viewModel:). Inside ChatView, mark the parameter @Bindable var
-   viewModel, render viewModel.snapshot.messages, and trigger await
-   viewModel.submitPrompt() from UI actions while also reading phases like
-   viewModel.snapshot.responsePhase for status indicators.
-*/
