@@ -86,6 +86,55 @@ final class ConversationStreamReducerTests: XCTestCase {
         }
     }
 
+    func testReasoningEventsUpdatePhase() {
+        var snapshot = ConversationStateSnapshot()
+
+        let created = ResponseStreamEvent(type: "response.reasoning.created", data: [:])
+        snapshot = ConversationStreamReducer.reduce(snapshot: snapshot, with: created)
+        if case .drafting = snapshot.reasoningPhase {
+            // ok
+        } else {
+            XCTFail("Expected drafting phase")
+        }
+
+        let delta = ResponseStreamEvent(type: "response.reasoning_summary_text.delta", data: [:])
+        snapshot = ConversationStreamReducer.reduce(snapshot: snapshot, with: delta)
+        if case .reasoning = snapshot.reasoningPhase {
+            // ok
+        } else {
+            XCTFail("Expected reasoning phase")
+        }
+
+        let completed = ResponseStreamEvent(type: "response.reasoning_summary.completed", data: ["summary": AnyCodable("All good")])
+        snapshot = ConversationStreamReducer.reduce(snapshot: snapshot, with: completed)
+        if case .completed(let summary) = snapshot.reasoningPhase {
+            XCTAssertEqual(summary, "All good")
+        } else {
+            XCTFail("Expected completed phase")
+        }
+    }
+
+    func testToolCallEventsUpdatePhase() {
+        var snapshot = ConversationStateSnapshot()
+
+        let created = ResponseStreamEvent(type: "response.tool_call.created", data: ["name": AnyCodable("calendar"), "type": AnyCodable("function")])
+        snapshot = ConversationStreamReducer.reduce(snapshot: snapshot, with: created)
+        if case .running(let name, let type) = snapshot.toolCallPhase {
+            XCTAssertEqual(name, "calendar")
+            XCTAssertEqual(type, "function")
+        } else {
+            XCTFail("Expected running phase")
+        }
+
+        let completed = ResponseStreamEvent(type: "response.tool_call.completed", data: ["name": AnyCodable("calendar"), "type": AnyCodable("function")])
+        snapshot = ConversationStreamReducer.reduce(snapshot: snapshot, with: completed)
+        if case .completed(let name, _) = snapshot.toolCallPhase {
+            XCTAssertEqual(name, "calendar")
+        } else {
+            XCTFail("Expected completed phase")
+        }
+    }
+
     private static func makeAnyCodableDictionary<T: Encodable>(_ value: T) throws -> [String: AnyCodable] {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970

@@ -40,6 +40,10 @@ public final class ConversationViewModel {
 
         snapshot.messages.append(userMessage)
         snapshot.responsePhase = .preparing
+        snapshot.webSearchPhase = .none
+        snapshot.fileSearchPhase = .none
+        snapshot.reasoningPhase = .none
+        snapshot.toolCallPhase = .none
         lastObservedError = nil
 
         streamingTask?.cancel()
@@ -58,6 +62,10 @@ public final class ConversationViewModel {
 
         snapshot.messages.append(userMessage)
         snapshot.responsePhase = .preparing
+        snapshot.webSearchPhase = .none
+        snapshot.fileSearchPhase = .none
+        snapshot.reasoningPhase = .none
+        snapshot.toolCallPhase = .none
         lastObservedError = nil
 
         streamingTask?.cancel()

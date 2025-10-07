@@ -35,6 +35,14 @@ public enum ConversationReasoningPhase: Sendable, Equatable {
     case failed(reason: String?)
 }
 
+public enum ConversationToolCallPhase: Sendable, Equatable {
+    case none
+    case running(name: String?, callType: String?)
+    case awaitingOutput(name: String?, callType: String?)
+    case completed(name: String?, callType: String?)
+    case failed(name: String?, callType: String?, reason: String?)
+}
+
 public struct ConversationMessage: Identifiable, Equatable, Sendable {
     public enum Role: String, Sendable {
         case user
@@ -60,19 +68,22 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
     public var webSearchPhase: ConversationWebSearchPhase
     public var fileSearchPhase: ConversationFileSearchPhase
     public var reasoningPhase: ConversationReasoningPhase
+    public var toolCallPhase: ConversationToolCallPhase
 
     public init(
         messages: [ConversationMessage] = [],
         responsePhase: ConversationResponsePhase = .idle,
         webSearchPhase: ConversationWebSearchPhase = .none,
         fileSearchPhase: ConversationFileSearchPhase = .none,
-        reasoningPhase: ConversationReasoningPhase = .none
+        reasoningPhase: ConversationReasoningPhase = .none,
+        toolCallPhase: ConversationToolCallPhase = .none
     ) {
         self.messages = messages
         self.responsePhase = responsePhase
         self.webSearchPhase = webSearchPhase
         self.fileSearchPhase = fileSearchPhase
         self.reasoningPhase = reasoningPhase
+        self.toolCallPhase = toolCallPhase
     }
 }
 

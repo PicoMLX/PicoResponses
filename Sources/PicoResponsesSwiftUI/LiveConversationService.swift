@@ -120,7 +120,8 @@ public actor LiveConversationService: ConversationService {
             responsePhase: .completed,
             webSearchPhase: .none,
             fileSearchPhase: .none,
-            reasoningPhase: .none
+            reasoningPhase: .none,
+            toolCallPhase: .none
         )
         snapshot.messages = ConversationStreamReducer.merge(response: response, into: snapshot.messages)
         return snapshot
@@ -205,8 +206,12 @@ enum ConversationStreamReducer {
             snapshot.webSearchPhase = mapWebSearchPhase(type: type, event: event, current: snapshot.webSearchPhase)
         } else if type.hasPrefix("response.file_search_call") {
             snapshot.fileSearchPhase = mapFileSearchPhase(type: type, event: event, current: snapshot.fileSearchPhase)
-        } else if type.hasPrefix("response.reasoning") {
+        } else if type.hasPrefix("response.reasoning") || type.hasPrefix("response.reasoning_") {
             snapshot.reasoningPhase = mapReasoningPhase(type: type, event: event, current: snapshot.reasoningPhase)
+        } else if type.hasPrefix("response.tool_call") || type.hasPrefix("response.code_interpreter_call") {
+            snapshot.toolCallPhase = mapToolCallPhase(type: type, event: event, current: snapshot.toolCallPhase)
+        } else if type.hasPrefix("response.output_item") {
+            updateOutputItemStates(type: type, event: event, snapshot: &snapshot)
         }
     }
 
@@ -242,19 +247,126 @@ enum ConversationStreamReducer {
     }
 
     private static func mapReasoningPhase(type: String, event: ResponseStreamEvent, current: ConversationReasoningPhase) -> ConversationReasoningPhase {
-        switch type {
-        case "response.reasoning.created":
-            return .drafting
-        case "response.reasoning.delta":
-            return .reasoning
-        case "response.reasoning.completed":
-            let summary = event.data["summary"]?.stringValue
-            return .completed(summary: summary)
-        case "response.reasoning.failed":
-            return .failed(reason: event.data["error"]?.stringValue)
-        default:
-            return current
+        mapReasoningPhase(type: type, event: event, item: event.data["item"]?.dictionaryValue, current: current)
+    }
+
+    private static func mapReasoningPhase(type: String, event: ResponseStreamEvent, item: [String: AnyCodable]?, current: ConversationReasoningPhase) -> ConversationReasoningPhase {
+        if containsFailureIndicator(in: type) {
+            return .failed(reason: extractReasoningFailureMessage(from: event, item: item))
         }
+
+        if containsCompletionIndicator(in: type) {
+            let summary = extractReasoningSummary(from: event, item: item)
+            return .completed(summary: summary)
+        }
+
+        if containsProgressIndicator(in: type) {
+            return .reasoning
+        }
+
+        if containsCreationIndicator(in: type) {
+            return .drafting
+        }
+
+        return current
+    }
+
+    private static func mapToolCallPhase(type: String, event: ResponseStreamEvent, current: ConversationToolCallPhase) -> ConversationToolCallPhase {
+        mapToolCallPhase(type: type, dataSource: event.data, item: event.data["item"]?.dictionaryValue, current: current)
+    }
+
+    private static func mapToolCallPhase(type: String, dataSource: [String: AnyCodable], item: [String: AnyCodable]?, current: ConversationToolCallPhase) -> ConversationToolCallPhase {
+        let name = stringValue(for: "name", dataSource: dataSource, item: item)
+        let callType = stringValue(for: "type", dataSource: dataSource, item: item)
+
+        if containsFailureIndicator(in: type) {
+            let reason = stringValue(for: "error", dataSource: dataSource, item: item) ?? stringValue(for: "message", dataSource: dataSource, item: item)
+            return .failed(name: name, callType: callType, reason: reason)
+        }
+
+        if containsCompletionIndicator(in: type) {
+            return .completed(name: name, callType: callType)
+        }
+
+        if type.contains(".output") {
+            return .awaitingOutput(name: name, callType: callType)
+        }
+
+        if containsCreationIndicator(in: type) || type.contains(".delta") {
+            return .running(name: name, callType: callType)
+        }
+
+        return current
+    }
+
+    private static func extractReasoningSummary(from event: ResponseStreamEvent, item: [String: AnyCodable]?) -> String? {
+        if let summary = item?["summary"] ?? event.data["summary"], let text = summary.stringValue {
+            return text
+        }
+        if let array = (item?["summary"] ?? event.data["summary"])?.arrayValue {
+            for entry in array {
+                if let string = entry.stringValue, !string.isEmpty {
+                    return string
+                }
+                if let dict = entry.dictionaryValue, let text = dict["text"]?.stringValue, !text.isEmpty {
+                    return text
+                }
+            }
+        }
+        if let summaryDict = (item?["summary"] ?? event.data["summary"])?.dictionaryValue,
+           let text = summaryDict["text"]?.stringValue, !text.isEmpty {
+            return text
+        }
+        if let text = (item?["text"] ?? event.data["text"])?.stringValue, !text.isEmpty {
+            return text
+        }
+        return nil
+    }
+
+    private static func extractReasoningFailureMessage(from event: ResponseStreamEvent, item: [String: AnyCodable]?) -> String? {
+        if let errorDict = (item?["error"] ?? event.data["error"])?.dictionaryValue {
+            return errorDict["message"]?.stringValue ?? errorDict["reason"]?.stringValue
+        }
+        return (item?["error"] ?? event.data["error"])?.stringValue ?? (item?["message"] ?? event.data["message"])?.stringValue
+    }
+
+    private static func updateOutputItemStates(type: String, event: ResponseStreamEvent, snapshot: inout ConversationStateSnapshot) {
+        guard let item = event.data["item"]?.dictionaryValue,
+              let itemType = item["type"]?.stringValue else {
+            return
+        }
+
+        if itemType.hasPrefix("reasoning") {
+            snapshot.reasoningPhase = mapReasoningPhase(type: type, event: event, item: item, current: snapshot.reasoningPhase)
+        } else if itemType == "tool_call" || itemType == "code_interpreter_call" {
+            snapshot.toolCallPhase = mapToolCallPhase(type: type, dataSource: event.data, item: item, current: snapshot.toolCallPhase)
+        }
+    }
+
+    private static func containsFailureIndicator(in type: String) -> Bool {
+        type.contains(".failed") || type.contains(".error") || type.contains(".cancelled")
+    }
+
+    private static func containsCompletionIndicator(in type: String) -> Bool {
+        type.contains(".completed") || type.contains(".done") || type.contains(".finished")
+    }
+
+    private static func containsProgressIndicator(in type: String) -> Bool {
+        type.contains(".delta") || type.contains(".in_progress") || type.contains(".progress")
+    }
+
+    private static func containsCreationIndicator(in type: String) -> Bool {
+        type.contains(".created") || type.contains(".added") || type.contains(".started")
+    }
+
+    private static func stringValue(for key: String, dataSource: [String: AnyCodable], item: [String: AnyCodable]?) -> String? {
+        if let itemValue = item?[key]?.stringValue, !itemValue.isEmpty {
+            return itemValue
+        }
+        if let eventValue = dataSource[key]?.stringValue, !eventValue.isEmpty {
+            return eventValue
+        }
+        return nil
     }
 }
 
