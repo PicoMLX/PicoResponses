@@ -48,4 +48,9 @@ struct ContentView: View {
     private func deleteItems(at offsets: IndexSet) {
         conversations.remove(atOffsets: offsets)
     }
+    
+    private func storeConversation(_ conversation: ConversationViewModel) {
+        conversations.append(conversation)
+        conversations.sort { $0.snapshot.createdAt > $1.snapshot.createdAt }
+    }
 }

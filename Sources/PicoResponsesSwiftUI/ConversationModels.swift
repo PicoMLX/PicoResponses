@@ -72,14 +72,13 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
     public var toolCallPhase: ConversationToolCallPhase
     public var lastResponseId: String?
     public var conversationId: String?
-    public var createdAt: Date?
-    public var updatedAt: Date?
+    public var createdAt: Date
     public var metadata: [String: AnyCodable]?
     
     public var topic: String? {
-        return metadata?["topic"] as? String
-    }
-
+          return metadata?["topic"] as? String
+      }
+    
     public init(
         messages: [ConversationMessage] = [],
         responsePhase: ConversationResponsePhase = .idle,
@@ -89,8 +88,7 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
         toolCallPhase: ConversationToolCallPhase = .none,
         lastResponseId: String? = nil,
         conversationId: String? = nil,
-        createdAt: Date? = nil,
-        updatedAt: Date? = nil,
+        createdAt: Date = .distantPast,
         metadata: [String: AnyCodable]? = nil
     ) {
         self.messages = messages
@@ -102,7 +100,6 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
         self.lastResponseId = lastResponseId
         self.conversationId = conversationId
         self.createdAt = createdAt
-        self.updatedAt = updatedAt
         self.metadata = metadata
     }
 }
@@ -133,8 +130,7 @@ public struct PreviewConversationService: ConversationService {
                     responsePhase: .awaitingResponse,
                     lastResponseId: previousResponseId,
                     conversationId: nil,
-                    createdAt: nil,
-                    updatedAt: nil,
+                    createdAt: .distantPast,
                     metadata: nil
                 )
             )
@@ -145,7 +141,6 @@ public struct PreviewConversationService: ConversationService {
                 lastResponseId: UUID().uuidString,
                 conversationId: "preview_conversation",
                 createdAt: Date(),
-                updatedAt: Date(),
                 metadata: ["preview": AnyCodable(true)]
             )
             continuation.yield(finalSnapshot)
@@ -166,7 +161,6 @@ public struct PreviewConversationService: ConversationService {
             lastResponseId: UUID().uuidString,
             conversationId: "preview_conversation",
             createdAt: Date(),
-            updatedAt: Date(),
             metadata: ["preview": AnyCodable(true)]
         )
     }

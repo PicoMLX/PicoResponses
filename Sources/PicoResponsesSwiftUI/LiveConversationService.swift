@@ -111,8 +111,7 @@ public actor LiveConversationService: ConversationService {
             responsePhase: .awaitingResponse,
             lastResponseId: previousResponseId,
             conversationId: nil,
-            createdAt: nil,
-            updatedAt: nil,
+            createdAt: .distantPast,
             metadata: nil
         )
 
@@ -164,7 +163,6 @@ public actor LiveConversationService: ConversationService {
             lastResponseId: response.id,
             conversationId: response.conversationId,
             createdAt: response.createdAt,
-            updatedAt: response.updatedAt ?? response.createdAt,
             metadata: response.metadata
         )
         snapshot.messages = ConversationStreamReducer.merge(response: response, into: snapshot.messages)
@@ -428,7 +426,6 @@ private extension ConversationStreamReducer {
             snapshot.conversationId = conversationId
         }
         snapshot.createdAt = response.createdAt
-        snapshot.updatedAt = response.updatedAt ?? response.createdAt
         snapshot.metadata = response.metadata
     }
 }
