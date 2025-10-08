@@ -5,6 +5,7 @@
 //  Created by Ronald Mannak on 10/6/25.
 //
 
+import Foundation
 import SwiftUI
 import BonjourPico
 
@@ -38,11 +39,19 @@ struct SelectServerView: View {
                     }
                     ForEach(bonjourPico.servers, id: \.self) { server in
                         Button("\(server.name)") {
-                            guard let url = URL(string: "http://\(server.ipAddress):\(server.port)") else {
+                            guard let baseURL = URL(string: "http://\(server.ipAddress):\(server.port)") else {
                                 print("Invalid url: http://\(server.ipAddress):\(server.port)")
                                 return
                             }
-                            self.server = (url.appendingPathExtension("v1"), nil, [""])
+                            let apiRoot = baseURL.appendingPathComponent("v1")
+                            let modelsEndpoint = apiRoot.appendingPathComponent("models")
+
+                            Task {
+                                let models = await fetchModels(from: modelsEndpoint)
+                                await MainActor.run {
+                                    self.server = (apiRoot, nil, models)
+                                }
+                            }
                         }
                     }
                 }
@@ -57,5 +66,29 @@ struct SelectServerView: View {
         .onAppear {
             bonjourPico.startStop()
         }
+    }
+}
+
+private struct ModelListResponse: Decodable {
+    struct ModelInfo: Decodable {
+        let id: String
+    }
+
+    let data: [ModelInfo]
+}
+
+private func fetchModels(from endpoint: URL) async -> [String] {
+    do {
+        let (data, response) = try await URLSession.shared.data(from: endpoint)
+        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
+            print("Failed to load models: invalid status code")
+            return []
+        }
+        let decoder = JSONDecoder()
+        let modelList = try decoder.decode(ModelListResponse.self, from: data)
+        return modelList.data.map { $0.id }
+    } catch {
+        print("Failed to load models from \(endpoint): \(error)")
+        return []
     }
 }
