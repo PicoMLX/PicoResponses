@@ -23,6 +23,7 @@ struct ConversationView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(message.text)
+                            .textSelection(.enabled)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
