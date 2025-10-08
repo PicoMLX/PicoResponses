@@ -11,17 +11,17 @@ import BonjourPico
 struct SelectServerView: View {
     
     @State var bonjourPico = BonjourPico()
-    @Binding var server: (URL, String?)?
+    @Binding var server: (URL, String?, [String])?
     
     var body: some View {
         VStack {
             List {
                 Section("Hosted servers") {
                     Button("OpenAI API") {
-                        server = (URL(string: "https://api.openai.com/v1")!, "<#sk-proj-xxxxx#>")
+                        server = (URL(string: "https://api.openai.com/v1")!, "<#sk-proj-xxxxx#>", ["gpt-5-nano"])
                     }
                     Button("Groq") {
-                        server = (URL(string: "https://api.groq.com/openai/v1")!, "<#gsk-xxxxx#>")
+                        server = (URL(string: "https://api.groq.com/openai/v1")!, "<#gsk-xxxxx#>", ["openai/gpt-oss-20b"])
                     }
                 }
                 Section("Local Pico AI Servers") {
@@ -42,7 +42,7 @@ struct SelectServerView: View {
                                 print("Invalid url: http://\(server.ipAddress):\(server.port)")
                                 return
                             }
-                            self.server = (url.appendingPathExtension("v1"), nil)
+                            self.server = (url.appendingPathExtension("v1"), nil, [""])
                         }
                     }
                 }

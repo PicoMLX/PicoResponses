@@ -12,7 +12,8 @@ import PicoResponsesSwiftUI
 @main
 struct ResponsesExampleApp: App {
     
-    @State private var server: (URL, String?)? //= URL(string: "https://api.openai.com/v1")
+    /// Connected server tuple: serverURL (e.g.`https://api.openai.com/v1`), apiKey (e.g.`sk-...`), and models (e.g.`[gpt-5-nano]`)
+    @State private var server: (URL, String?, [String])?
     
     var body: some Scene {
         WindowGroup {
@@ -24,14 +25,14 @@ struct ResponsesExampleApp: App {
         }
     }
     
-    private func createConversation(server: (URL, String?)) -> ConversationViewModel {
+    private func createConversation(server: (URL, String?, [String])) -> ConversationViewModel {
         print("running conversation")
         let config =  PicoResponsesConfiguration(
             apiKey: server.1,
             baseURL: server.0
         )
         let client = ResponsesClient(configuration: config)
-        let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: "gpt-5-nano"))
+        let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: server.2.first ?? "gpt-5-nano"))
         return ConversationViewModel(service: service)
     }
 }
