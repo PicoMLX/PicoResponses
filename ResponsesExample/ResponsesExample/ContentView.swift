@@ -12,6 +12,7 @@ import PicoResponsesSwiftUI
 struct ContentView: View {
 
     let service: LiveConversationService
+    var onSelectServer: () -> Void
     @State var conversations: [ConversationViewModel] = []
     @State private var selectedConversation: ConversationViewModel?
     
@@ -36,6 +37,11 @@ struct ContentView: View {
             ToolbarItem {
                 Button(action: newConversation) {
                     Label("New Conversation", systemImage: "square.and.pencil")
+                }
+            }
+            ToolbarItem {
+                Button(action: onSelectServer) {
+                    Label("Select Provider", systemImage: "arrow.triangle.swap") //"globe.badge.chevron.backward")
                 }
             }
         }
