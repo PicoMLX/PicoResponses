@@ -18,18 +18,23 @@ struct SelectServerView: View {
             List {
                 Section("Hosted servers") {
                     Button("OpenAI API") {
-                        server = (URL(string: "https://api.openai.com/v1")!, "sk-proj-xxxxx")
+                        server = (URL(string: "https://api.openai.com/v1")!, "<#sk-proj-xxxxx#>")
                     }
                     Button("Groq") {
-                        server = (URL(string: "https://api.groq.com/openai/v1")!, "gsk-xxxxx")
+                        server = (URL(string: "https://api.groq.com/openai/v1")!, "<#gsk-xxxxx#>")
                     }
                 }
                 Section("Local Pico AI Servers") {
                     if bonjourPico.servers.isEmpty {
-                        Text("No Pico AI servers found on this network")
-                        Text("Turn on Bonjour in `Pico -> Settings -> Server -> Bonjour` if your server isn't listed")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading) {
+                            Text("No Pico AI servers found on this network")
+                            Group {
+                                Text("Turn on Bonjour in `Pico -> Settings -> Server -> Bonjour` if your server isn't listed")
+                                Text("Or download Pico from the [Mac App Store](https://apps.apple.com/us/app/pico-ai-server-llm-vlm-mlx/id6738607769?mt=12)")
+                            }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     ForEach(bonjourPico.servers, id: \.self) { server in
                         Button("\(server.name)") {
