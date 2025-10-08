@@ -52,6 +52,19 @@ struct ComposeView: View {
                         insertNewlineAtCursor()
                         return .handled
                     }
+                    .onSubmit {
+                        guard isSending == false else { return }
+                        
+                        // DO NOT REMOVE. This is a workaround for the selection bug described below.
+                        // Submitting with the Enter key behaves differently from tapping the Send button:
+                        // it selects the entire text in the field. Clearing the selection without waiting
+                        // will crash the app.
+                        Task { @MainActor in
+                            selection = nil
+                            try await Task.sleep(for: .seconds(0.1))
+                            onSend()
+                        }
+                    }
                 
                 if isSending {
                     Button {
@@ -67,7 +80,7 @@ struct ComposeView: View {
                     Button {
                         // DO NOT REMOVE. This is a workaround for a bug in SwiftUI where the selection is out of bounds when the text binding
                         // of TextField is updated to a shorter or empty string.
-                        setCursorToStartOfText()
+                        selection = nil
                         onSend()
                     } label: {
                         Image(systemName: "paperplane.fill")
@@ -104,9 +117,5 @@ struct ComposeView: View {
                 }
             }
         }
-    }
-    
-    private func setCursorToStartOfText() {
-        self.selection = TextSelection(insertionPoint: text.startIndex)
     }
 }
