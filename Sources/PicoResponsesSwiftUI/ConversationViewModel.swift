@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-public final class ConversationViewModel {
+public final class ConversationViewModel: Identifiable {
     public private(set) var snapshot: ConversationStateSnapshot
     public private(set) var isStreaming: Bool
     public private(set) var isCancelling: Bool

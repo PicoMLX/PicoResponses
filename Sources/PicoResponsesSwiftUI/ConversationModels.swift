@@ -1,4 +1,5 @@
 import Foundation
+import PicoResponsesCore
 
 public enum ConversationResponsePhase: Sendable, Equatable {
     case idle
@@ -70,6 +71,14 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
     public var reasoningPhase: ConversationReasoningPhase
     public var toolCallPhase: ConversationToolCallPhase
     public var lastResponseId: String?
+    public var conversationId: String?
+    public var createdAt: Date?
+    public var updatedAt: Date?
+    public var metadata: [String: AnyCodable]?
+    
+    public var topic: String? {
+        return metadata?["topic"] as? String
+    }
 
     public init(
         messages: [ConversationMessage] = [],
@@ -78,7 +87,11 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
         fileSearchPhase: ConversationFileSearchPhase = .none,
         reasoningPhase: ConversationReasoningPhase = .none,
         toolCallPhase: ConversationToolCallPhase = .none,
-        lastResponseId: String? = nil
+        lastResponseId: String? = nil,
+        conversationId: String? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil,
+        metadata: [String: AnyCodable]? = nil
     ) {
         self.messages = messages
         self.responsePhase = responsePhase
@@ -87,6 +100,10 @@ public struct ConversationStateSnapshot: Sendable, Equatable {
         self.reasoningPhase = reasoningPhase
         self.toolCallPhase = toolCallPhase
         self.lastResponseId = lastResponseId
+        self.conversationId = conversationId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.metadata = metadata
     }
 }
 
@@ -114,14 +131,22 @@ public struct PreviewConversationService: ConversationService {
                 ConversationStateSnapshot(
                     messages: messages,
                     responsePhase: .awaitingResponse,
-                    lastResponseId: previousResponseId
+                    lastResponseId: previousResponseId,
+                    conversationId: nil,
+                    createdAt: nil,
+                    updatedAt: nil,
+                    metadata: nil
                 )
             )
             let response = ConversationMessage(role: .assistant, text: "Echo: \(messages.last?.text ?? "")")
             let finalSnapshot = ConversationStateSnapshot(
                 messages: messages + [response],
                 responsePhase: .completed,
-                lastResponseId: UUID().uuidString
+                lastResponseId: UUID().uuidString,
+                conversationId: "preview_conversation",
+                createdAt: Date(),
+                updatedAt: Date(),
+                metadata: ["preview": AnyCodable(true)]
             )
             continuation.yield(finalSnapshot)
             continuation.finish()
@@ -138,7 +163,11 @@ public struct PreviewConversationService: ConversationService {
         return ConversationStateSnapshot(
             messages: messages + [response],
             responsePhase: .completed,
-            lastResponseId: UUID().uuidString
+            lastResponseId: UUID().uuidString,
+            conversationId: "preview_conversation",
+            createdAt: Date(),
+            updatedAt: Date(),
+            metadata: ["preview": AnyCodable(true)]
         )
     }
 }

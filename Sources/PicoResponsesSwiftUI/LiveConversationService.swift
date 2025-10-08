@@ -109,7 +109,11 @@ public actor LiveConversationService: ConversationService {
         let initialSnapshot = ConversationStateSnapshot(
             messages: messages,
             responsePhase: .awaitingResponse,
-            lastResponseId: previousResponseId
+            lastResponseId: previousResponseId,
+            conversationId: nil,
+            createdAt: nil,
+            updatedAt: nil,
+            metadata: nil
         )
 
         return AsyncThrowingStream { continuation in
@@ -157,7 +161,11 @@ public actor LiveConversationService: ConversationService {
             fileSearchPhase: .none,
             reasoningPhase: .none,
             toolCallPhase: .none,
-            lastResponseId: response.id
+            lastResponseId: response.id,
+            conversationId: response.conversationId,
+            createdAt: response.createdAt,
+            updatedAt: response.updatedAt ?? response.createdAt,
+            metadata: response.metadata
         )
         snapshot.messages = ConversationStreamReducer.merge(response: response, into: snapshot.messages)
         return snapshot
@@ -169,7 +177,7 @@ enum ConversationStreamReducer {
         var mutableSnapshot = snapshot
 
         if let response = event.response {
-            mutableSnapshot.lastResponseId = response.id
+            applyMetadata(from: response, to: &mutableSnapshot)
         } else if let responseId = event.responseId {
             mutableSnapshot.lastResponseId = responseId
         }
@@ -192,7 +200,7 @@ enum ConversationStreamReducer {
             mutableSnapshot.responsePhase = .completed
             if let response = event.completedResponse {
                 mutableSnapshot.messages = merge(response: response, into: mutableSnapshot.messages)
-                mutableSnapshot.lastResponseId = response.id
+                applyMetadata(from: response, to: &mutableSnapshot)
             }
         case .responseError:
             let message = event.streamError?.message ?? "Unknown error"
@@ -410,6 +418,18 @@ enum ConversationStreamReducer {
             return eventValue
         }
         return nil
+    }
+}
+
+private extension ConversationStreamReducer {
+    static func applyMetadata(from response: ResponseObject, to snapshot: inout ConversationStateSnapshot) {
+        snapshot.lastResponseId = response.id
+        if let conversationId = response.conversationId, !conversationId.isEmpty {
+            snapshot.conversationId = conversationId
+        }
+        snapshot.createdAt = response.createdAt
+        snapshot.updatedAt = response.updatedAt ?? response.createdAt
+        snapshot.metadata = response.metadata
     }
 }
 
