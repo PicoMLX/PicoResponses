@@ -17,14 +17,6 @@ struct SelectServerView: View {
     var body: some View {
         VStack {
             List {
-                Section("Hosted servers") {
-                    Button("OpenAI API") {
-                        server = (URL(string: "https://api.openai.com/v1")!, "<#sk-proj-xxxxx#>", ["gpt-5-nano"])
-                    }
-                    Button("Groq") {
-                        server = (URL(string: "https://api.groq.com/openai/v1")!, "<#gsk-xxxxx#>", ["openai/gpt-oss-20b"])
-                    }
-                }
                 Section("Local Pico AI Servers") {
                     if bonjourPico.servers.isEmpty {
                         VStack(alignment: .leading) {
@@ -53,6 +45,17 @@ struct SelectServerView: View {
                                 }
                             }
                         }
+                    }
+                }
+                Section("Third party servers") {
+                    Button("OpenAI API") {
+                        server = (URL(string: "https://api.openai.com/v1")!, "<#sk-proj-xxxxx#>", ["gpt-5-nano"])
+                    }
+                    Button("Groq") {
+                        server = (URL(string: "https://api.groq.com/openai/v1")!, "<#gsk-xxxxx#>", ["openai/gpt-oss-20b"])
+                    }
+                    Button("LM Studio") {
+                        server = (URL(string:"http://localhost:1234/v1")!, nil, ["liquid/lfm2-1.2b"])
                     }
                 }
             }
