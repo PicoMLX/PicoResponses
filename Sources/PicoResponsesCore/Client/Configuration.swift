@@ -1,7 +1,7 @@
 import Foundation
 
 public struct PicoResponsesConfiguration: Sendable {
-    public let apiKey: String
+    public let apiKey: String?
     public let organizationId: String?
     public let projectId: String?
     public let baseURL: URL
@@ -9,7 +9,7 @@ public struct PicoResponsesConfiguration: Sendable {
     public let streamingTimeout: TimeInterval?
 
     public init(
-        apiKey: String,
+        apiKey: String? = nil,
         organizationId: String? = nil,
         projectId: String? = nil,
         baseURL: URL = URL(string: "https://api.openai.com/v1")!,

@@ -12,23 +12,26 @@ import PicoResponsesSwiftUI
 @main
 struct ResponsesExampleApp: App {
     
-    @State private var serverURL: URL?
+    @State private var server: (URL, String?)? //= URL(string: "https://api.openai.com/v1")
     
     var body: some Scene {
         WindowGroup {
-            if let serverURL {
-                ConversationView(conversation: createConversation(from: serverURL))
+            if let server {
+                ConversationView(conversation: createConversation(server: server))
             } else {
-                SelectServerView(serverURL: $serverURL)
+                SelectServerView(server: $server)
             }
         }
     }
     
-    func createConversation(from url: URL) -> ConversationViewModel {
+    private func createConversation(server: (URL, String?)) -> ConversationViewModel {
         print("running conversation")
-        let config =  PicoResponsesConfiguration(apiKey: "", baseURL: url)
+        let config =  PicoResponsesConfiguration(
+            apiKey: server.1,
+            baseURL: server.0
+        )
         let client = ResponsesClient(configuration: config)
-        let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: "gpt-4.1-mini"))
+        let service = LiveConversationService(client: client, requestBuilder: ConversationRequestBuilder(model: "gpt-5-nano"))
         return ConversationViewModel(service: service)
     }
 }

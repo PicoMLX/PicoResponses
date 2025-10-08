@@ -244,7 +244,9 @@ final class HTTPClient: @unchecked Sendable {
         headers?.forEach { key, value in
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
-        urlRequest.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        if let apiKey = configuration.apiKey, !apiKey.isEmpty {
+            urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
         if let organizationId = configuration.organizationId {
             urlRequest.setValue(organizationId, forHTTPHeaderField: "OpenAI-Organization")
         }
