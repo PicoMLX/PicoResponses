@@ -47,23 +47,20 @@ struct ComposeView: View {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.gray.opacity(0.2))
                     )
-                    .onKeyPress(.return, phases: [.down]) { keyPress in
-                        guard keyPress.modifiers.contains(.shift) else { return .ignored }
-                        insertNewlineAtCursor()
-                        return .handled
-                    }
-                    .onSubmit {
-                        guard isSending == false else { return }
-                        
-                        // DO NOT REMOVE. This is a workaround for the selection bug described below.
-                        // Submitting with the Enter key behaves differently from tapping the Send button:
-                        // it selects the entire text in the field. Clearing the selection without waiting
-                        // will crash the app.
-                        Task { @MainActor in
-                            selection = nil
-                            try await Task.sleep(for: .seconds(0.1))
-                            onSend()
+                    .onKeyPress { press in
+                        if press.key == .return {
+                            if press.modifiers.isEmpty {
+                                if !isSending && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    selection = nil
+                                    onSend()
+                                    return .handled
+                                }
+                            } else if press.modifiers == [.shift] {
+                                insertNewlineAtCursor()
+                                return .handled
+                            }
                         }
+                        return .ignored
                     }
                 
                 if isSending {
@@ -111,10 +108,7 @@ struct ComposeView: View {
             if let newPosition = text.index(insertPosition, offsetBy: 1, limitedBy: text.endIndex) {
                 self.selection = TextSelection(insertionPoint: newPosition)
             } else {
-                Task { @MainActor in
-                    // DO NOT REMOVE. This fixes a bug. The text length isn't updated when calling TextSelection directly.
-                    self.selection = TextSelection(insertionPoint: text.endIndex)
-                }
+                self.selection = nil
             }
         }
     }
