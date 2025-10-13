@@ -98,11 +98,10 @@ struct ComposeView: View {
     private func insertNewlineAtCursor() {
         let selection = self.selection ?? TextSelection(insertionPoint: text.endIndex)
         if case let .selection(range) = selection.indices {
+            self.selection = nil
             text.replaceSubrange(range, with: "\n")
             if let index = text.index(range.lowerBound, offsetBy: 1, limitedBy: text.endIndex) {
                 self.selection = TextSelection(insertionPoint: index)
-            } else {
-                self.selection = nil
             }
         }
     }
