@@ -96,17 +96,11 @@ struct ComposeView: View {
     }
     
     private func insertNewlineAtCursor() {
-        guard let selection = selection else { return }
-        
-        // Get the cursor position or selection range
+        let selection = self.selection ?? TextSelection(insertionPoint: text.endIndex)
         if case let .selection(range) = selection.indices {
-            // Insert newline at the current cursor position
-            let insertPosition = range.lowerBound
-            text.insert("\n", at: insertPosition)
-            
-            // Update cursor position to be after the inserted newline
-            if let newPosition = text.index(insertPosition, offsetBy: 1, limitedBy: text.endIndex) {
-                self.selection = TextSelection(insertionPoint: newPosition)
+            text.replaceSubrange(range, with: "\n")
+            if let index = text.index(range.lowerBound, offsetBy: 1, limitedBy: text.endIndex) {
+                self.selection = TextSelection(insertionPoint: index)
             } else {
                 self.selection = nil
             }
