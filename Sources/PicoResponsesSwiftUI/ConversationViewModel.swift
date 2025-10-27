@@ -4,6 +4,7 @@ import Observation
 @MainActor
 @Observable
 public final class ConversationViewModel: Identifiable {
+    public let id: UUID
     public private(set) var snapshot: ConversationStateSnapshot
     public private(set) var isStreaming: Bool
     public private(set) var isCancelling: Bool
@@ -16,10 +17,12 @@ public final class ConversationViewModel: Identifiable {
 
     public init(
         service: ConversationService,
+        id: UUID = UUID(),
         initialSnapshot: ConversationStateSnapshot = ConversationStateSnapshot(),
         initialDraft: String = ""
     ) {
         self.service = service
+        self.id = id
         self.snapshot = initialSnapshot
         self.draft = initialDraft
         self.isStreaming = false

@@ -19,7 +19,6 @@ struct ResponsesExampleApp: App {
         WindowGroup {
             if let server {
                 ContentView(service: createConversationService(server: server)) { self.server = nil }
-//                ConversationView(conversation: createConversation(server: server))
             } else {
                 SelectServerView(server: $server)
             }

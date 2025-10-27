@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F8B183562E9ECE55007F778C /* PicoMarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = F8B183552E9ECE55007F778C /* PicoMarkdownView */; };
 		F8E2A9E02E92E3FC00EFF610 /* PicoResponsesCore in Frameworks */ = {isa = PBXBuildFile; productRef = F8E2A9DF2E92E3FC00EFF610 /* PicoResponsesCore */; };
 		F8E2A9E22E92E3FC00EFF610 /* PicoResponsesSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = F8E2A9E12E92E3FC00EFF610 /* PicoResponsesSwiftUI */; };
 		F8E2A9F32E94376500EFF610 /* BonjourPico in Frameworks */ = {isa = PBXBuildFile; productRef = F8E2A9F22E94376500EFF610 /* BonjourPico */; };
@@ -30,6 +31,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F8E2A9F32E94376500EFF610 /* BonjourPico in Frameworks */,
+				F8B183562E9ECE55007F778C /* PicoMarkdownView in Frameworks */,
 				F8E2A9E22E92E3FC00EFF610 /* PicoResponsesSwiftUI in Frameworks */,
 				F8E2A9E02E92E3FC00EFF610 /* PicoResponsesCore in Frameworks */,
 			);
@@ -77,6 +79,7 @@
 				F8E2A9DF2E92E3FC00EFF610 /* PicoResponsesCore */,
 				F8E2A9E12E92E3FC00EFF610 /* PicoResponsesSwiftUI */,
 				F8E2A9F22E94376500EFF610 /* BonjourPico */,
+				F8B183552E9ECE55007F778C /* PicoMarkdownView */,
 			);
 			productName = ResponsesExample;
 			productReference = F8E2A9A82E92D91600EFF610 /* ResponsesExample.app */;
@@ -109,6 +112,7 @@
 			packageReferences = (
 				F8E2A9DE2E92E3FC00EFF610 /* XCLocalSwiftPackageReference "../../PicoResponses" */,
 				F8E2A9F12E94376500EFF610 /* XCRemoteSwiftPackageReference "BonjourPico" */,
+				F8B183542E9ECE55007F778C /* XCLocalSwiftPackageReference "../../PicoMarkdownView" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F8E2A9A92E92D91600EFF610 /* Products */;
@@ -389,6 +393,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		F8B183542E9ECE55007F778C /* XCLocalSwiftPackageReference "../../PicoMarkdownView" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../PicoMarkdownView;
+		};
 		F8E2A9DE2E92E3FC00EFF610 /* XCLocalSwiftPackageReference "../../PicoResponses" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../PicoResponses;
@@ -407,6 +415,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		F8B183552E9ECE55007F778C /* PicoMarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PicoMarkdownView;
+		};
 		F8E2A9DF2E92E3FC00EFF610 /* PicoResponsesCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PicoResponsesCore;

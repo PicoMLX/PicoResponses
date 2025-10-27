@@ -63,6 +63,30 @@ let viewModel = ConversationViewModel(service: liveService)
 
 ## Conversation Flows
 
+### SwiftUI Observation
+
+`ConversationViewModel` adopts Swift 6.2's `@Observable` macro, so SwiftUI views work with bindings via `@Bindable`. The observation system keeps derived state such as `snapshot.lastMessageAt` up to date for features like recency sorting.
+
+```swift
+struct ConversationList: View {
+    @State private var conversations: [ConversationViewModel] = []
+
+    var body: some View {
+        List(sortedConversations) { conversation in
+            NavigationLink {
+                ConversationView(conversation: conversation)
+            } label: {
+                Text(conversation.snapshot.topic ?? "New Conversation")
+            }
+        }
+    }
+
+    private var sortedConversations: [ConversationViewModel] {
+        conversations.sorted { $0.snapshot.lastMessageAt > $1.snapshot.lastMessageAt }
+    }
+}
+```
+
 ### Streaming Conversations
 
 Call `submitPrompt()` from the SwiftUI layer. The view model sends only the most recent user message (per the `historyStrategy`) and includes `previous_response_id` automatically when available.

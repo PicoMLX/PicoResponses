@@ -13,7 +13,7 @@ struct ContentView: View {
 
     let service: LiveConversationService
     var onSelectServer: () -> Void
-    @State var conversations: [ConversationViewModel] = []
+    @State private var conversations: [ConversationViewModel] = []
     @State private var selectedConversation: ConversationViewModel?
     
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
@@ -21,7 +21,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List {
-                ForEach(conversations) { conversation in
+                ForEach(sortedConversations) { conversation in
                     NavigationLink {
                         ConversationView(conversation: conversation)
                     } label: {
@@ -51,12 +51,18 @@ struct ContentView: View {
         selectedConversation = nil
     }
     
-    private func deleteItems(at offsets: IndexSet) {
-        conversations.remove(atOffsets: offsets)
+    private var sortedConversations: [ConversationViewModel] {
+        conversations.sorted { $0.snapshot.lastMessageAt > $1.snapshot.lastMessageAt }
     }
-    
-    private func storeConversation(_ conversation: ConversationViewModel) {
-        conversations.append(conversation)
-        conversations.sort { $0.snapshot.createdAt > $1.snapshot.createdAt }
+
+    private func deleteItems(at offsets: IndexSet) {
+        let sorted = sortedConversations
+        for index in offsets {
+            guard sorted.indices.contains(index) else { continue }
+            let conversation = sorted[index]
+            if let originalIndex = conversations.firstIndex(where: { $0.id == conversation.id }) {
+                conversations.remove(at: originalIndex)
+            }
+        }
     }
 }

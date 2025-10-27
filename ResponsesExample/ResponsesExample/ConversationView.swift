@@ -7,24 +7,40 @@
 
 import SwiftUI
 import PicoResponsesSwiftUI
+import PicoMarkdownView
+//import Splash
 
 struct ConversationView: View {
     
-    @State var conversation: ConversationViewModel
+//    @Binding var conversation: ConversationViewModel
+    @Bindable var conversation: ConversationViewModel
+//
+//    let customProvider = CodeBlockThemeProvider(
+//        light: { codeFont in
+//            Theme.sunset(withFont: Splash.Font(size: Double(codeFont.pointSize)))
+//        },
+//        dark: { codeFont in
+//            Theme.midnight(withFont: Splash.Font(size: Double(codeFont.pointSize)))
+//        }
+//    )
+    
+    init(conversation: ConversationViewModel) {
+        self.conversation = conversation
+    }
     
     var body: some View {
         
         VStack(spacing: 0) {
-        
             List {
                 ForEach(conversation.snapshot.messages) { message in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(message.role.rawValue.capitalized)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(message.text)
-                            .textSelection(.enabled)
+                        PicoMarkdownTextKit2View(text: message.text)
                     }
+                    .textSelection(.enabled)
+                    .id(message.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))

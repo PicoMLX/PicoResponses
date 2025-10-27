@@ -219,6 +219,7 @@ enum ConversationStreamReducer {
         var mutableMessages = messages
         if let lastIndex = mutableMessages.indices.last, mutableMessages[lastIndex].role == .assistant {
             mutableMessages[lastIndex].text.append(text)
+            mutableMessages[lastIndex].createdAt = Date()
         } else {
             mutableMessages.append(ConversationMessage(role: .assistant, text: text))
         }
@@ -234,7 +235,13 @@ enum ConversationStreamReducer {
             guard !text.isEmpty else { continue }
             guard let role = output.role else { continue }
             let messageRole = ConversationMessage.Role(messageRole: role)
-            aggregatedMessages.append(ConversationMessage(role: messageRole, text: text))
+            aggregatedMessages.append(
+                ConversationMessage(
+                    role: messageRole,
+                    text: text,
+                    createdAt: response.createdAt
+                )
+            )
         }
 
         guard !aggregatedMessages.isEmpty else { return mutableMessages }
@@ -425,7 +432,7 @@ private extension ConversationStreamReducer {
         if let conversationId = response.conversationId, !conversationId.isEmpty {
             snapshot.conversationId = conversationId
         }
-        snapshot.createdAt = response.createdAt
+        snapshot.createdAt = max(snapshot.createdAt, response.createdAt)
         snapshot.metadata = response.metadata
     }
 }
