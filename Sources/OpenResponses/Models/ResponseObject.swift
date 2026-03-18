@@ -251,19 +251,25 @@ public struct ResponseUsage: Codable, Sendable, Equatable {
     public let totalTokens: Int
     public let inputTokensDetails: InputTokensDetails
     public let outputTokensDetails: OutputTokenDetails
+    public let promptTimeMs: TimeInterval?
+    public let generationTimeMs: TimeInterval?
 
     public init(
         inputTokens: Int,
         outputTokens: Int,
         totalTokens: Int,
         inputTokensDetails: InputTokensDetails,
-        outputTokensDetails: OutputTokenDetails
+        outputTokensDetails: OutputTokenDetails,
+        promptTimeMs: TimeInterval? = nil,
+        generationTimeMs: TimeInterval? = nil
     ) {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.totalTokens = totalTokens
         self.inputTokensDetails = inputTokensDetails
         self.outputTokensDetails = outputTokensDetails
+        self.promptTimeMs = promptTimeMs
+        self.generationTimeMs = generationTimeMs
     }
 }
 
