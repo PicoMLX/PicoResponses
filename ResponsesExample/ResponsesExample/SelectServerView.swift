@@ -31,9 +31,14 @@ struct SelectServerView: View {
                     }
                     ForEach(bonjourPico.endpoints) { endpoint in
                         Button("\(endpoint.displayName)") {
-                            // Prefer the advertised IP address; fall back to the Bonjour host name.
-                            guard let host = endpoint.ipAddresses.first ?? endpoint.hostName,
-                                  let baseURL = URL(string: "http://\(host):\(endpoint.port)") else {
+                            // Prefer the Bonjour host name (recommended for connecting); fall back
+                            // to an advertised IP. Bracket IPv6 literals so the URL host stays valid.
+                            guard let rawHost = endpoint.hostName ?? endpoint.ipAddresses.first else {
+                                print("Invalid url for \(endpoint.displayName)")
+                                return
+                            }
+                            let host = rawHost.contains(":") ? "[\(rawHost)]" : rawHost
+                            guard let baseURL = URL(string: "http://\(host):\(endpoint.port)") else {
                                 print("Invalid url for \(endpoint.displayName)")
                                 return
                             }
