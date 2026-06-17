@@ -18,7 +18,7 @@ struct SelectServerView: View {
         VStack {
             List {
                 Section("Local Pico AI Servers") {
-                    if bonjourPico.servers.isEmpty {
+                    if bonjourPico.endpoints.isEmpty {
                         VStack(alignment: .leading) {
                             Text("No Pico AI servers found on this network")
                             Group {
@@ -29,10 +29,12 @@ struct SelectServerView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    ForEach(bonjourPico.servers, id: \.self) { server in
-                        Button("\(server.name)") {
-                            guard let baseURL = URL(string: "http://\(server.ipAddress):\(server.port)") else {
-                                print("Invalid url: http://\(server.ipAddress):\(server.port)")
+                    ForEach(bonjourPico.endpoints) { endpoint in
+                        Button("\(endpoint.displayName)") {
+                            // Prefer the advertised IP address; fall back to the Bonjour host name.
+                            guard let host = endpoint.ipAddresses.first ?? endpoint.hostName,
+                                  let baseURL = URL(string: "http://\(host):\(endpoint.port)") else {
+                                print("Invalid url for \(endpoint.displayName)")
                                 return
                             }
                             let apiRoot = baseURL.appendingPathComponent("v1")
@@ -66,12 +68,18 @@ struct SelectServerView: View {
             .buttonStyle(.plain)
             
             Button(bonjourPico.isScanning ? "Stop scanning for Pico AI Servers" : "Scan for Pico AI Servers") {
-                bonjourPico.startStop()
+                Task {
+                    if bonjourPico.isScanning {
+                        await bonjourPico.stopScanning()
+                    } else {
+                        try? await bonjourPico.startScanning()
+                    }
+                }
             }
         }
         .padding()
-        .onAppear {
-            bonjourPico.startStop()
+        .task {
+            try? await bonjourPico.startScanning()
         }
     }
 }
