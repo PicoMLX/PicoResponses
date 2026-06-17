@@ -13,12 +13,16 @@ struct SelectServerView: View {
     
     @State var bonjourPico = BonjourPico()
     @Binding var server: (URL, String?, [String])?
+
+    // Local snapshot of discovered servers. Mirrors `bonjourPico.endpoints` while scanning,
+    // but is kept (not cleared) when the user stops scanning so the list stays selectable.
+    @State private var discoveredServers: [BonjourEndpoint] = []
     
     var body: some View {
         VStack {
             List {
                 Section("Local Pico AI Servers") {
-                    if bonjourPico.endpoints.isEmpty {
+                    if discoveredServers.isEmpty {
                         VStack(alignment: .leading) {
                             Text("No Pico AI servers found on this network")
                             Group {
@@ -29,7 +33,7 @@ struct SelectServerView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    ForEach(bonjourPico.endpoints) { endpoint in
+                    ForEach(discoveredServers) { endpoint in
                         Button("\(endpoint.displayName)") {
                             // Prefer the Bonjour host name (recommended for connecting); fall back
                             // to an advertised IP. Bracket IPv6 literals so the URL host stays valid.
@@ -85,6 +89,14 @@ struct SelectServerView: View {
         .padding()
         .task {
             try? await bonjourPico.startScanning()
+        }
+        .onChange(of: bonjourPico.endpoints) { _, endpoints in
+            // Mirror live results while scanning. stopScanning() sets isScanning = false
+            // before clearing endpoints, so the cleared snapshot is ignored here and the
+            // last discovered list stays visible (and selectable) after the scan stops.
+            if bonjourPico.isScanning {
+                discoveredServers = endpoints
+            }
         }
     }
 }
