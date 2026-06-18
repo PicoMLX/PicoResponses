@@ -20,6 +20,15 @@
       }
     },
     {
+      "identity" : "picomarkdownview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/PicoMLX/PicoMarkdownView",
+      "state" : {
+        "branch" : "main",
+        "revision" : "afc6e54749ba5960a124fc7918c16b866df35696"
+      }
+    },
+    {
       "identity" : "swiftmath",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mgriebling/SwiftMath.git",
