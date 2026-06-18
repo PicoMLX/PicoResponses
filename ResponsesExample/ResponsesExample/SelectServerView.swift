@@ -81,14 +81,14 @@ struct SelectServerView: View {
                     if bonjourPico.isScanning {
                         await bonjourPico.stopScanning()
                     } else {
-                        try? await bonjourPico.startScanning()
+                        await startScan()
                     }
                 }
             }
         }
         .padding()
         .task {
-            try? await bonjourPico.startScanning()
+            await startScan()
         }
         .onChange(of: bonjourPico.endpoints) { _, endpoints in
             // Mirror live results while scanning. stopScanning() sets isScanning = false
@@ -98,6 +98,13 @@ struct SelectServerView: View {
                 discoveredServers = endpoints
             }
         }
+    }
+
+    /// Starts a fresh scan. Clears the kept snapshot first so a new scan that finds nothing
+    /// doesn't leave stale servers from a previous (stopped) scan visible and selectable.
+    private func startScan() async {
+        discoveredServers = []
+        try? await bonjourPico.startScanning()
     }
 }
 
