@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/PicoMLX/BonjourPico",
       "state" : {
-        "revision" : "e8b8c906d4c0e5da34d6e81a82d4cdd62a7c0d5b",
-        "version" : "0.0.1"
+        "branch" : "main",
+        "revision" : "c8dece524057da6f275d7aed9af8cbaa3c057a65"
       }
     },
     {
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "ca2a9d90cbe49e09b92f4b6ebd922c03ebea51d0",
         "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "picomarkdownview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/PicoMLX/PicoMarkdownView",
+      "state" : {
+        "branch" : "main",
+        "revision" : "afc6e54749ba5960a124fc7918c16b866df35696"
       }
     },
     {

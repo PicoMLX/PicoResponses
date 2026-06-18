@@ -13,12 +13,16 @@ struct SelectServerView: View {
     
     @State var bonjourPico = BonjourPico()
     @Binding var server: (URL, String?, [String])?
+
+    // Local snapshot of discovered servers. Mirrors `bonjourPico.endpoints` while scanning,
+    // but is kept (not cleared) when the user stops scanning so the list stays selectable.
+    @State private var discoveredServers: [BonjourEndpoint] = []
     
     var body: some View {
         VStack {
             List {
                 Section("Local Pico AI Servers") {
-                    if bonjourPico.servers.isEmpty {
+                    if discoveredServers.isEmpty {
                         VStack(alignment: .leading) {
                             Text("No Pico AI servers found on this network")
                             Group {
@@ -29,10 +33,17 @@ struct SelectServerView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    ForEach(bonjourPico.servers, id: \.self) { server in
-                        Button("\(server.name)") {
-                            guard let baseURL = URL(string: "http://\(server.ipAddress):\(server.port)") else {
-                                print("Invalid url: http://\(server.ipAddress):\(server.port)")
+                    ForEach(discoveredServers) { endpoint in
+                        Button("\(endpoint.displayName)") {
+                            // Prefer the Bonjour host name (recommended for connecting); fall back
+                            // to an advertised IP. Bracket IPv6 literals so the URL host stays valid.
+                            guard let rawHost = endpoint.hostName ?? endpoint.ipAddresses.first else {
+                                print("Invalid url for \(endpoint.displayName)")
+                                return
+                            }
+                            let host = rawHost.contains(":") ? "[\(rawHost)]" : rawHost
+                            guard let baseURL = URL(string: "http://\(host):\(endpoint.port)") else {
+                                print("Invalid url for \(endpoint.displayName)")
                                 return
                             }
                             let apiRoot = baseURL.appendingPathComponent("v1")
@@ -66,13 +77,34 @@ struct SelectServerView: View {
             .buttonStyle(.plain)
             
             Button(bonjourPico.isScanning ? "Stop scanning for Pico AI Servers" : "Scan for Pico AI Servers") {
-                bonjourPico.startStop()
+                Task {
+                    if bonjourPico.isScanning {
+                        await bonjourPico.stopScanning()
+                    } else {
+                        await startScan()
+                    }
+                }
             }
         }
         .padding()
-        .onAppear {
-            bonjourPico.startStop()
+        .task {
+            await startScan()
         }
+        .onChange(of: bonjourPico.endpoints) { _, endpoints in
+            // Mirror live results while scanning. stopScanning() sets isScanning = false
+            // before clearing endpoints, so the cleared snapshot is ignored here and the
+            // last discovered list stays visible (and selectable) after the scan stops.
+            if bonjourPico.isScanning {
+                discoveredServers = endpoints
+            }
+        }
+    }
+
+    /// Starts a fresh scan. Clears the kept snapshot first so a new scan that finds nothing
+    /// doesn't leave stale servers from a previous (stopped) scan visible and selectable.
+    private func startScan() async {
+        discoveredServers = []
+        try? await bonjourPico.startScanning()
     }
 }
 
